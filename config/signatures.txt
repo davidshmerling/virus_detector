@@ -1,6 +1,16 @@
 # Malware signature strings (one string per line)
 # Change this file without recompiling the program
-Trojan
-Virus
-Backdoor
-HackTool
+
+
+#Virus
+#Backdoor
+#HackTool
+123423467364872676587
+323765768327568573
+334298beuf43h34k38yc934c
+d32cnt8ny2c5ntcy5i372cnyti7ny57c2nc7c
+x43x,4u23o8ty58nc2y5c7n57cv
+1x34t5cnyw4785cytv875ncvc
+qx35i7n5cyi7qt5ni7cnti7nc2c35i7bc35c4t32cr47ry
+2c35i7bc35c4t32cr47ry7fh7fghfgh47ghf7fg74
+qc4jiq3c57btcv5747v82cbv873cbncbbcbn7xbn78x87nx78bn

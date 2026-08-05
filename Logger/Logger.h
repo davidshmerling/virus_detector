@@ -11,9 +11,9 @@ enum class LogLevel {
 };
 
 // Creates one new log file per run.
-// File name example: runtime/logs/2026-08-05_09-23-45_123.log
-//
-// Sorted by name descending (Z→A) or by date => newest file on top.
+// File name uses inverted date fields so default A→Z sort
+// puts the newest log on top, e.g.:
+//   2026-08-05_15-31-29_295 → 0-7973-91-94_84-68-70_704.log
 class Logger {
 public:
     // Creates logs_directory if needed, then opens a new timestamped file.

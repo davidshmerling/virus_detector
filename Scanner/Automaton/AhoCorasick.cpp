@@ -35,11 +35,14 @@ void AhoCorasick::addPattern(
     int state = 0;
 
     for (const unsigned char byte : pattern) {
-        int& nextState = nodes_[state].next[byte];
+        int nextState = nodes_[state].next[byte];
 
         if (nextState == -1) {
+            // Capture indexes before emplace_back — reallocation
+            // would invalidate any reference into nodes_.
             nextState = static_cast<int>(nodes_.size());
             nodes_.emplace_back();
+            nodes_[state].next[byte] = nextState;
         }
 
         state = nextState;

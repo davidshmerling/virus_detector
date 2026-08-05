@@ -36,7 +36,8 @@ int Application::run(int argc, char* argv[])
         *quarantine_manager_,
         *logger_,
         *profiler_,
-        project_root);
+        project_root,
+        32);
 
     CommandParser command_parser;
     const Command command = command_parser.parse(argc, argv);

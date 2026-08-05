@@ -2,6 +2,7 @@
 
 #include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
+#include "Performance/PerformanceProfiler.h"
 #include "Scanner/FileEnumerator/SortedDirectoryReader.h"
 #include "Scanner/ScanSummary.h"
 
@@ -19,7 +20,8 @@ public:
 
     FileEnumerator(
         const ExcludeManager& exclude_manager,
-        Logger& logger);
+        Logger& logger,
+        PerformanceProfiler& profiler);
 
     bool enumerateSorted(
         const fs::path& root,

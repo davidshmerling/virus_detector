@@ -6,10 +6,11 @@ namespace fs = std::filesystem;
 
 FileEnumerator::FileEnumerator(
     const ExcludeManager& exclude_manager,
-    Logger& logger)
+    Logger& logger,
+    PerformanceProfiler& profiler)
     : exclude_manager_(exclude_manager),
       logger_(logger),
-      directory_reader_(logger)
+      directory_reader_(logger, profiler)
 {
 }
 

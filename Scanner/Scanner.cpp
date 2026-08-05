@@ -1,6 +1,6 @@
 #include "Scanner/Scanner.h"
 
-#include "Cache/JsonCacheRepository.h"
+#include "Cache/SqliteCacheRepository.h"
 #include "CLI/ConsolePrinter.h"
 #include "Common/Error.h"
 #include "Common/OperationResult.h"
@@ -23,12 +23,13 @@ Scanner::Scanner(
     std::size_t queue_capacity)
     : signature_manager_(std::move(signatures_file)),
       exclude_manager_(std::move(exclude_file)),
-      file_enumerator_(exclude_manager_, logger),
+      file_enumerator_(exclude_manager_, logger, profiler),
       checkpoint_repository_("runtime/resume/checkpoint.json"),
       progress_tracker_(checkpoint_repository_, logger, profiler),
       cache_manager_(
-          std::make_unique<JsonCacheRepository>("runtime/cache/cache.json"),
+          std::make_unique<SqliteCacheRepository>("runtime/cache/cache.db"),
           logger,
+          profiler,
           100),
       quarantine_manager_(quarantine_manager),
       thread_pool_(worker_count, queue_capacity),
@@ -281,8 +282,16 @@ bool Scanner::submitFile(
     ++summary.discovered;
 
     std::error_code error;
-    const fs::path relative_path =
-        fs::relative(file_path, root, error).lexically_normal();
+    fs::path relative_path;
+
+    {
+        ScopedPerformanceTimer relative_timer(
+            profiler_,
+            PerformanceSection::RelativePath);
+
+        relative_path =
+            fs::relative(file_path, root, error).lexically_normal();
+    }
 
     if (error) {
         logger_.warning(
@@ -291,33 +300,47 @@ bool Scanner::submitFile(
         return true;
     }
 
-    if (!progress_tracker_.registerTask(relative_path)) {
-        logger_.error(
-            "Could not register task: " +
-            relative_path.string());
-        return false;
+    {
+        ScopedPerformanceTimer register_timer(
+            profiler_,
+            PerformanceSection::ProgressRegister);
+
+        if (!progress_tracker_.registerTask(relative_path)) {
+            logger_.error(
+                "Could not register task: " +
+                relative_path.string());
+            return false;
+        }
     }
 
-    const bool enqueued = thread_pool_.enqueue(
-        [this, file_path, relative_path, &summary]() {
-            try {
-                file_processor_->process(file_path, summary);
-            } catch (const std::exception& exception) {
-                logger_.error(
-                    "Unhandled error while scanning " +
-                    file_path.string() +
-                    ": " +
-                    exception.what());
-                ++summary.failed;
-            } catch (...) {
-                logger_.error(
-                    "Unknown error while scanning: " +
-                    file_path.string());
-                ++summary.failed;
-            }
+    bool enqueued = false;
 
-            progress_tracker_.markCompleted(relative_path);
-        });
+    {
+        ScopedPerformanceTimer queue_timer(
+            profiler_,
+            PerformanceSection::QueueWait);
+
+        enqueued = thread_pool_.enqueue(
+            [this, file_path, relative_path, &summary]() {
+                try {
+                    file_processor_->process(file_path, summary);
+                } catch (const std::exception& exception) {
+                    logger_.error(
+                        "Unhandled error while scanning " +
+                        file_path.string() +
+                        ": " +
+                        exception.what());
+                    ++summary.failed;
+                } catch (...) {
+                    logger_.error(
+                        "Unknown error while scanning: " +
+                        file_path.string());
+                    ++summary.failed;
+                }
+
+                progress_tracker_.markCompleted(relative_path);
+            });
+    }
 
     if (!enqueued) {
         progress_tracker_.cancelTask(relative_path);
@@ -361,14 +384,8 @@ void Scanner::finishScan(
     thread_pool_.wait();
     progress_tracker_.flush();
 
-    {
-        ScopedPerformanceTimer timer(
-            profiler_,
-            PerformanceSection::CacheFlush);
-
-        if (!cache_manager_.flush()) {
-            logger_.error("Could not flush cache");
-        }
+    if (!cache_manager_.flush()) {
+        logger_.error("Could not flush cache");
     }
 
     if (!enumeration_ok) {

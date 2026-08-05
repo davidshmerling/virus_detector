@@ -63,7 +63,7 @@ bool JsonCacheRepository::initialize()
     }
 
     CacheMap empty_cache;
-    return save(empty_cache);
+    return save(empty_cache, empty_cache, {});
 }
 
 bool JsonCacheRepository::load(CacheMap& entries) const
@@ -114,12 +114,15 @@ bool JsonCacheRepository::load(CacheMap& entries) const
     return true;
 }
 
-bool JsonCacheRepository::save(const CacheMap& entries) const
+bool JsonCacheRepository::save(
+    const CacheMap& snapshot,
+    const CacheMap& /*dirty_entries*/,
+    const std::unordered_set<std::string>& /*removed_paths*/) const
 {
     json document;
     document["entries"] = json::object();
 
-    for (const auto& [path, entry] : entries) {
+    for (const auto& [path, entry] : snapshot) {
         document["entries"][path] = {
             {"file_last_modified", entry.file_last_modified},
             {"file_size", entry.file_size},

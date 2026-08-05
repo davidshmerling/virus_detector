@@ -2,6 +2,7 @@
 
 #include "Common/Error.h"
 #include "Common/FileVerdict.h"
+#include "Performance/PerformanceProfiler.h"
 #include "Scanner/Automaton/AhoCorasick.h"
 
 #include <cstddef>
@@ -19,8 +20,9 @@ struct FileScanResult {
 // Returns Error on local failures; does not log or print.
 class FileScanner {
 public:
-    explicit FileScanner(
+    FileScanner(
         const AhoCorasick& automaton,
+        PerformanceProfiler& profiler,
         std::size_t chunk_size = 4 * 1024 * 1024);
 
     [[nodiscard]] FileScanResult scan(
@@ -34,5 +36,6 @@ private:
         std::size_t& matched_signature_index) const;
 
     const AhoCorasick& automaton_;
+    PerformanceProfiler& profiler_;
     std::size_t chunk_size_;
 };

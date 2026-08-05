@@ -1,6 +1,7 @@
 #include "Scanner/FileScanner/FileScanner.h"
 
 #include <cerrno>
+#include <chrono>
 #include <fstream>
 #include <system_error>
 #include <vector>
@@ -9,8 +10,10 @@ namespace fs = std::filesystem;
 
 FileScanner::FileScanner(
     const AhoCorasick& automaton,
+    PerformanceProfiler& profiler,
     std::size_t chunk_size)
     : automaton_(automaton),
+      profiler_(profiler),
       chunk_size_(chunk_size == 0 ? 4 * 1024 * 1024 : chunk_size)
 {
 }
@@ -82,7 +85,16 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
         return result;
     }
 
-    std::ifstream file(file_path, std::ios::binary);
+    std::ifstream file;
+
+    {
+        ScopedPerformanceTimer timer(
+            profiler_,
+            PerformanceSection::FileOpen);
+
+        file.open(file_path, std::ios::binary);
+    }
+
     if (!file.is_open()) {
         result.error = {
             .code = ErrorCode::FileOpenFailed,
@@ -98,23 +110,49 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
     // that crosses a chunk boundary is still detected.
     int state = 0;
 
-    while (file) {
-        file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    // Accumulate per file to avoid locking the profiler on every chunk.
+    std::chrono::nanoseconds read_time{0};
+    std::chrono::nanoseconds search_time{0};
+    bool found_malicious = false;
+
+    while (true) {
+        const auto read_start = std::chrono::steady_clock::now();
+
+        file.read(
+            buffer.data(),
+            static_cast<std::streamsize>(buffer.size()));
         const auto bytes_read = file.gcount();
+
+        read_time += std::chrono::steady_clock::now() - read_start;
 
         if (bytes_read <= 0) {
             break;
         }
 
-        if (scanBuffer(
-                std::span<const char>{
-                    buffer.data(),
-                    static_cast<std::size_t>(bytes_read)},
-                state,
-                result.matched_signature_index)) {
-            result.verdict = FileVerdict::Malicious;
-            return result;
+        const auto search_start = std::chrono::steady_clock::now();
+
+        found_malicious = scanBuffer(
+            std::span<const char>{
+                buffer.data(),
+                static_cast<std::size_t>(bytes_read)},
+            state,
+            result.matched_signature_index);
+
+        search_time += std::chrono::steady_clock::now() - search_start;
+
+        if (found_malicious) {
+            break;
         }
+    }
+
+    profiler_.addMeasurement(PerformanceSection::FileRead, read_time);
+    profiler_.addMeasurement(
+        PerformanceSection::AutomatonSearch,
+        search_time);
+
+    if (found_malicious) {
+        result.verdict = FileVerdict::Malicious;
+        return result;
     }
 
     if (file.bad()) {

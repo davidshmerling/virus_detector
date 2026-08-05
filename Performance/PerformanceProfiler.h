@@ -12,14 +12,20 @@ enum class PerformanceSection {
     TotalScan,
     Enumeration,
     SubmitTask,
+    DirectoryRead,
+    DirectorySort,
+    RelativePath,
+    ProgressRegister,
+    QueueWait,
     CacheValidation,
+    CacheUpdate,
+    CacheJsonSave,
     FileOpen,
     FileRead,
     AutomatonSearch,
     FileProcessing,
     CheckpointSave,
-    Quarantine,
-    CacheFlush
+    Quarantine
 };
 
 class PerformanceProfiler {

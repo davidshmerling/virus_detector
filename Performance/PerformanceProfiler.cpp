@@ -31,14 +31,20 @@ void PerformanceProfiler::logReport() const
         PerformanceSection::TotalScan,
         PerformanceSection::Enumeration,
         PerformanceSection::SubmitTask,
+        PerformanceSection::DirectoryRead,
+        PerformanceSection::DirectorySort,
+        PerformanceSection::RelativePath,
+        PerformanceSection::ProgressRegister,
+        PerformanceSection::QueueWait,
+        PerformanceSection::FileProcessing,
         PerformanceSection::CacheValidation,
+        PerformanceSection::CacheUpdate,
+        PerformanceSection::CacheJsonSave,
         PerformanceSection::FileOpen,
         PerformanceSection::FileRead,
         PerformanceSection::AutomatonSearch,
-        PerformanceSection::FileProcessing,
         PerformanceSection::CheckpointSave,
-        PerformanceSection::Quarantine,
-        PerformanceSection::CacheFlush
+        PerformanceSection::Quarantine
     };
 
     for (const PerformanceSection section : kReportOrder) {
@@ -97,8 +103,29 @@ std::string PerformanceProfiler::sectionName(
         case PerformanceSection::SubmitTask:
             return "Submit task";
 
+        case PerformanceSection::DirectoryRead:
+            return "Directory read";
+
+        case PerformanceSection::DirectorySort:
+            return "Directory sort";
+
+        case PerformanceSection::RelativePath:
+            return "Relative path";
+
+        case PerformanceSection::ProgressRegister:
+            return "Progress register";
+
+        case PerformanceSection::QueueWait:
+            return "Queue wait";
+
         case PerformanceSection::CacheValidation:
-            return "Cache validation";
+            return "Cache lookup";
+
+        case PerformanceSection::CacheUpdate:
+            return "Cache update";
+
+        case PerformanceSection::CacheJsonSave:
+            return "Cache save";
 
         case PerformanceSection::FileOpen:
             return "File open";
@@ -117,9 +144,6 @@ std::string PerformanceProfiler::sectionName(
 
         case PerformanceSection::Quarantine:
             return "Quarantine";
-
-        case PerformanceSection::CacheFlush:
-            return "Cache flush";
     }
 
     return "Unknown";

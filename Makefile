@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++23 -O2 -g -I. -Iexternal
-LDFLAGS = -pthread
+LDFLAGS = -pthread -lsqlite3
 
 BUILD_DIR = build
 OBJ_DIR   = $(BUILD_DIR)/obj
@@ -26,6 +26,7 @@ OBJECTS = \
 	ExcludeManager \
 	CacheManager \
 	JsonCacheRepository \
+	SqliteCacheRepository \
 	JsonCheckpointRepository \
 	ProgressTracker \
 	ThreadPool \
@@ -44,7 +45,7 @@ $(OBJ_DIR) $(DEP_DIR) $(BIN_DIR):
 	mkdir -p $@
 
 $(TARGET): $(OBJS) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 
 define COMPILE
 $(OBJ_DIR)/$(1).o: $(2) | $(OBJ_DIR) $(DEP_DIR)
@@ -65,6 +66,7 @@ $(eval $(call COMPILE,FileMover,Quarantine/FileMover.cpp))
 $(eval $(call COMPILE,ExcludeManager,Exclude/ExcludeManager.cpp))
 $(eval $(call COMPILE,CacheManager,Cache/CacheManager.cpp))
 $(eval $(call COMPILE,JsonCacheRepository,Cache/JsonCacheRepository.cpp))
+$(eval $(call COMPILE,SqliteCacheRepository,Cache/SqliteCacheRepository.cpp))
 $(eval $(call COMPILE,JsonCheckpointRepository,Resume/JsonCheckpointRepository.cpp))
 $(eval $(call COMPILE,ProgressTracker,Resume/ProgressTracker.cpp))
 $(eval $(call COMPILE,ThreadPool,ThreadPool/ThreadPool.cpp))

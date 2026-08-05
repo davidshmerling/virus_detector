@@ -6,8 +6,11 @@
 
 namespace fs = std::filesystem;
 
-SortedDirectoryReader::SortedDirectoryReader(Logger& logger)
-    : logger_(logger)
+SortedDirectoryReader::SortedDirectoryReader(
+    Logger& logger,
+    PerformanceProfiler& profiler)
+    : logger_(logger),
+      profiler_(profiler)
 {
 }
 
@@ -17,45 +20,57 @@ bool SortedDirectoryReader::read(
 {
     children.clear();
 
-    std::error_code error;
-    fs::directory_iterator iterator(
-        directory,
-        fs::directory_options::skip_permission_denied,
-        error);
+    {
+        ScopedPerformanceTimer timer(
+            profiler_,
+            PerformanceSection::DirectoryRead);
 
-    if (error) {
-        logger_.warning(
-            std::format(
-                "Open directory failed for {}: {}",
-                directory.string(),
-                error.message()));
-        return false;
-    }
+        std::error_code error;
+        fs::directory_iterator iterator(
+            directory,
+            fs::directory_options::skip_permission_denied,
+            error);
 
-    const fs::directory_iterator end;
-
-    while (iterator != end) {
-        const fs::path entry_path = iterator->path();
-        children.push_back(*iterator);
-
-        iterator.increment(error);
         if (error) {
             logger_.warning(
                 std::format(
-                    "Read directory entry failed for {}: {}",
-                    entry_path.string(),
+                    "Open directory failed for {}: {}",
+                    directory.string(),
                     error.message()));
-            error.clear();
+            return false;
+        }
+
+        const fs::directory_iterator end;
+
+        while (iterator != end) {
+            const fs::path entry_path = iterator->path();
+            children.push_back(*iterator);
+
+            iterator.increment(error);
+            if (error) {
+                logger_.warning(
+                    std::format(
+                        "Read directory entry failed for {}: {}",
+                        entry_path.string(),
+                        error.message()));
+                error.clear();
+            }
         }
     }
 
-    std::ranges::sort(
-        children,
-        [](const fs::directory_entry& left,
-           const fs::directory_entry& right) {
-            return left.path().filename().generic_string()
-                 < right.path().filename().generic_string();
-        });
+    {
+        ScopedPerformanceTimer timer(
+            profiler_,
+            PerformanceSection::DirectorySort);
+
+        std::ranges::sort(
+            children,
+            [](const fs::directory_entry& left,
+               const fs::directory_entry& right) {
+                return left.path().filename().generic_string()
+                     < right.path().filename().generic_string();
+            });
+    }
 
     return true;
 }

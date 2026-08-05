@@ -3,19 +3,23 @@
 #include "Cache/CacheRepository.h"
 #include "Common/FileVerdict.h"
 #include "Logger/Logger.h"
+#include "Performance/PerformanceProfiler.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
-#include <mutex>
 #include <optional>
+#include <shared_mutex>
+#include <string>
+#include <unordered_set>
 
 class CacheManager {
 public:
     CacheManager(
         std::unique_ptr<CacheRepository> repository,
         Logger& logger,
+        PerformanceProfiler& profiler,
         std::size_t flush_interval = 100);
 
     bool initialize();
@@ -42,13 +46,15 @@ private:
         std::int64_t& last_modified,
         std::uintmax_t& file_size);
 
-    bool flushUnlocked();
+    std::size_t pendingChangesLocked() const;
 
     std::unique_ptr<CacheRepository> repository_;
     Logger& logger_;
+    PerformanceProfiler& profiler_;
 
-    mutable std::mutex mutex_;
+    mutable std::shared_mutex mutex_;
     CacheMap entries_;
+    std::unordered_set<std::string> dirty_paths_;
+    std::unordered_set<std::string> removed_paths_;
     std::size_t flush_interval_;
-    std::size_t dirty_count_ = 0;
 };

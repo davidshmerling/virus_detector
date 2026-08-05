@@ -1,13 +1,16 @@
 #pragma once
 
 #include "Logger/Logger.h"
+#include "Performance/PerformanceProfiler.h"
 
 #include <filesystem>
 #include <vector>
 
 class SortedDirectoryReader {
 public:
-    explicit SortedDirectoryReader(Logger& logger);
+    SortedDirectoryReader(
+        Logger& logger,
+        PerformanceProfiler& profiler);
 
     bool read(
         const std::filesystem::path& directory,
@@ -15,4 +18,5 @@ public:
 
 private:
     Logger& logger_;
+    PerformanceProfiler& profiler_;
 };

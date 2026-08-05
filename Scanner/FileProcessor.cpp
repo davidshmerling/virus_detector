@@ -27,10 +27,6 @@ bool FileProcessor::checkCache(
     const fs::path& file_path,
     ScanSummary& summary)
 {
-    ScopedPerformanceTimer timer(
-        profiler_,
-        PerformanceSection::CacheValidation);
-
     const auto cached_verdict = cache_manager_.getValidVerdict(
         file_path,
         signatures_last_modified_);
@@ -45,7 +41,7 @@ bool FileProcessor::checkCache(
 
 FileScanResult FileProcessor::scanFile(const fs::path& file_path)
 {
-    FileScanner file_scanner(automaton_);
+    FileScanner file_scanner(automaton_, profiler_);
     return file_scanner.scan(file_path);
 }
 
