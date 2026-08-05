@@ -37,9 +37,10 @@ public:
 private:
     static std::string pathKey(const std::filesystem::path& path);
 
-    static bool getLastModified(
+    static bool getFileIdentity(
         const std::filesystem::path& path,
-        std::int64_t& result);
+        std::int64_t& last_modified,
+        std::uintmax_t& file_size);
 
     bool flushUnlocked();
 

@@ -53,13 +53,18 @@ std::optional<FileVerdict> CacheManager::getValidVerdict(
     }
 
     std::int64_t current_file_time = 0;
-    if (!getLastModified(file_path, current_file_time)) {
+    std::uintmax_t current_file_size = 0;
+    if (!getFileIdentity(file_path, current_file_time, current_file_size)) {
         return std::nullopt;
     }
 
     const CacheEntry& entry = iterator->second;
 
     if (entry.file_last_modified != current_file_time) {
+        return std::nullopt;
+    }
+
+    if (entry.file_size != current_file_size) {
         return std::nullopt;
     }
 
@@ -82,15 +87,17 @@ bool CacheManager::update(
     }
 
     std::int64_t file_last_modified = 0;
-    if (!getLastModified(file_path, file_last_modified)) {
+    std::uintmax_t file_size = 0;
+    if (!getFileIdentity(file_path, file_last_modified, file_size)) {
         logger_.warning(
-            "Could not read file modification time: " +
+            "Could not read file identity: " +
             file_path.string());
         return false;
     }
 
     CacheEntry entry;
     entry.file_last_modified = file_last_modified;
+    entry.file_size = file_size;
     entry.signatures_last_modified = signatures_last_modified;
     entry.verdict = verdict;
 
@@ -168,9 +175,10 @@ std::string CacheManager::pathKey(const fs::path& path)
     return normalized.generic_string();
 }
 
-bool CacheManager::getLastModified(
+bool CacheManager::getFileIdentity(
     const fs::path& path,
-    std::int64_t& result)
+    std::int64_t& last_modified,
+    std::uintmax_t& file_size)
 {
     std::error_code error;
 
@@ -181,8 +189,14 @@ bool CacheManager::getLastModified(
         return false;
     }
 
-    result = static_cast<std::int64_t>(
+    const std::uintmax_t size = fs::file_size(path, error);
+    if (error) {
+        return false;
+    }
+
+    last_modified = static_cast<std::int64_t>(
         file_time.time_since_epoch().count());
+    file_size = size;
 
     return true;
 }
