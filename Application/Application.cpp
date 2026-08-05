@@ -4,12 +4,17 @@
 #include "Scanner/ScanSummary.h"
 
 #include <chrono>
+#include <filesystem>
 #include <string>
+
+namespace fs = std::filesystem;
 
 int Application::run(int argc, char* argv[])
 {
     using clock = std::chrono::steady_clock;
     const auto start_time = clock::now();
+
+    const fs::path project_root = fs::current_path();
 
     logger_ = std::make_unique<Logger>("runtime/logs");
     if (!logger_->isOpen()) {
@@ -19,6 +24,8 @@ int Application::run(int argc, char* argv[])
 
     ConsolePrinter::printMessage("Log file: " + logger_->filePath());
 
+    profiler_ = std::make_unique<PerformanceProfiler>(*logger_);
+
     quarantine_manager_ = std::make_unique<QuarantineManager>(
         "runtime/quarantine",
         *logger_);
@@ -27,7 +34,9 @@ int Application::run(int argc, char* argv[])
         "config/signatures.txt",
         "config/exclude.txt",
         *quarantine_manager_,
-        *logger_);
+        *logger_,
+        *profiler_,
+        project_root);
 
     CommandParser command_parser;
     const Command command = command_parser.parse(argc, argv);
@@ -81,6 +90,7 @@ int Application::runScan(const std::filesystem::path& root)
     }
 
     const ScanSummary summary = scanner_->scanRoot(root);
+    profiler_->logReport();
     ConsolePrinter::printScanSummary(summary);
     return summary.failed.load() > 0 ? 1 : 0;
 }

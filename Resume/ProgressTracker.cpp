@@ -6,9 +6,11 @@ namespace fs = std::filesystem;
 
 ProgressTracker::ProgressTracker(
     JsonCheckpointRepository& repository,
-    Logger& logger)
+    Logger& logger,
+    PerformanceProfiler& profiler)
     : repository_(repository),
-      logger_(logger)
+      logger_(logger),
+      profiler_(profiler)
 {
 }
 
@@ -18,6 +20,7 @@ bool ProgressTracker::startNewScan(const fs::path& root)
 
     unfinished_paths_.clear();
     enumeration_finished_ = false;
+    dirty_changes_ = 0;
 
     checkpoint_.version = 2;
     checkpoint_.root = fs::absolute(root).lexically_normal();
@@ -33,6 +36,7 @@ bool ProgressTracker::resumeScan(const ScanCheckpoint& checkpoint)
 
     unfinished_paths_.clear();
     enumeration_finished_ = false;
+    dirty_changes_ = 0;
     checkpoint_ = checkpoint;
 
     return true;
@@ -53,27 +57,38 @@ bool ProgressTracker::registerTask(const fs::path& relative_path)
         return true;
     }
 
-    return saveLocked();
+    ++dirty_changes_;
+    return flushIfNeededLocked();
 }
 
 bool ProgressTracker::cancelTask(const fs::path& relative_path)
 {
     std::scoped_lock lock(mutex_);
 
+    const std::string old_first =
+        unfinished_paths_.empty() ? "" : *unfinished_paths_.begin();
+
     unfinished_paths_.erase(pathKey(relative_path));
-    return saveLocked();
+
+    const std::string new_first =
+        unfinished_paths_.empty() ? "" : *unfinished_paths_.begin();
+
+    if (old_first == new_first) {
+        return true;
+    }
+
+    ++dirty_changes_;
+    return flushIfNeededLocked();
 }
 
 bool ProgressTracker::markCompleted(const fs::path& relative_path)
 {
     std::scoped_lock lock(mutex_);
 
-    const std::string key = pathKey(relative_path);
-
     const std::string old_first =
         unfinished_paths_.empty() ? "" : *unfinished_paths_.begin();
 
-    unfinished_paths_.erase(key);
+    unfinished_paths_.erase(pathKey(relative_path));
 
     if (enumeration_finished_ && unfinished_paths_.empty()) {
         checkpoint_.status = "completed";
@@ -88,7 +103,8 @@ bool ProgressTracker::markCompleted(const fs::path& relative_path)
         return true;
     }
 
-    return saveLocked();
+    ++dirty_changes_;
+    return flushIfNeededLocked();
 }
 
 bool ProgressTracker::markEnumerationFinished()
@@ -130,14 +146,28 @@ void ProgressTracker::updateNextUnfinished()
     }
 }
 
+bool ProgressTracker::flushIfNeededLocked()
+{
+    if (dirty_changes_ < flush_interval_) {
+        return true;
+    }
+
+    return saveLocked();
+}
+
 bool ProgressTracker::saveLocked()
 {
     updateNextUnfinished();
+
+    ScopedPerformanceTimer timer(
+        profiler_,
+        PerformanceSection::CheckpointSave);
 
     if (!repository_.save(checkpoint_)) {
         logger_.error("Could not save checkpoint");
         return false;
     }
 
+    dirty_changes_ = 0;
     return true;
 }

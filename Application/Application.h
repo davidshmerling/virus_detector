@@ -2,6 +2,7 @@
 
 #include "CLI/CommandParser.h"
 #include "Logger/Logger.h"
+#include "Performance/PerformanceProfiler.h"
 #include "Quarantine/QuarantineManager.h"
 #include "Scanner/Scanner.h"
 
@@ -22,6 +23,7 @@ private:
     int listQuarantine();
 
     std::unique_ptr<Logger> logger_;
+    std::unique_ptr<PerformanceProfiler> profiler_;
     std::unique_ptr<QuarantineManager> quarantine_manager_;
     std::unique_ptr<Scanner> scanner_;
 };

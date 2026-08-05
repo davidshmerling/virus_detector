@@ -9,7 +9,7 @@ A modular C++23 antivirus scanner for Linux. It scans files by signature matchin
 - **Quarantine** — move infected files aside; restore or delete by id
 - **Cache** — skip unchanged clean files; flush to disk every 100 updates
 - **Resume** — checkpoint tracks `next_unfinished_path`; continue after a crash
-- **Exclusions** — user paths in `config/exclude.txt` plus built-in system paths (`/proc`, `/sys`, `/dev`, `/run`, `/tmp`)
+- **Exclusions** — user paths in `config/exclude.txt`; built-in system paths (`/proc`, `/sys`, `/dev`, `/run`, `/tmp`); project infrastructure (`runtime/`, `build/`, `.git/`, `config/signatures.txt`); and the full project root only on `scan-all`
 - **Logging** — one timestamped log file per run under `runtime/logs/`
 - **Thread pool** — bounded queue; workers scan files in parallel
 - **Symlink safety** — symbolic links are skipped (no follow)
@@ -94,7 +94,13 @@ One signature string per line. Lines starting with `#` are comments.
 
 ### Exclusions — `config/exclude.txt`
 
-Absolute paths only (for now). System folders are always excluded in code.
+Absolute paths only (for now). Always excluded in code:
+
+- System folders: `/proc`, `/sys`, `/dev`, `/run`, `/tmp`
+- Under the project root (any scan): `runtime/`, `build/`, `.git/`, `config/signatures.txt`
+- The entire project root: only on `scan-all` (so `scan ./test_scan` still works)
+
+`Application` resolves the project root once via `current_path()` and passes it into `Scanner`.
 
 ## Runtime data
 
@@ -140,7 +146,7 @@ FileEnumerator (sorted DFS)
 | String matching without rebuild | `SignatureManager` + Aho-Corasick |
 | Logging | `Logger` |
 | Resume | `ProgressTracker` + checkpoint |
-| Exclusions | `ExcludeManager` + system list |
+| Exclusions | `ExcludeManager` + system / internal / user lists |
 
 ## License
 

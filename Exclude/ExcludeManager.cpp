@@ -70,6 +70,49 @@ fs::path ExcludeManager::normalize(const fs::path& path)
     return normalized;
 }
 
+bool ExcludeManager::isUnderPath(
+    const fs::path& path,
+    const fs::path& root) const
+{
+    const std::string normalized_path =
+        path.lexically_normal().generic_string();
+    const std::string normalized_root =
+        root.lexically_normal().generic_string();
+
+    if (normalized_path == normalized_root) {
+        return true;
+    }
+
+    if (normalized_path.size() <= normalized_root.size()) {
+        return false;
+    }
+
+    if (!normalized_path.starts_with(normalized_root)) {
+        return false;
+    }
+
+    return normalized_path[normalized_root.size()] == '/';
+}
+
+void ExcludeManager::clearInternalExcludedPaths()
+{
+    internal_excluded_paths_.clear();
+}
+
+void ExcludeManager::addInternalExcludedPath(const fs::path& path)
+{
+    const fs::path normalized = normalize(path);
+    const std::string key = normalized.generic_string();
+
+    for (const fs::path& existing : internal_excluded_paths_) {
+        if (existing.generic_string() == key) {
+            return;
+        }
+    }
+
+    internal_excluded_paths_.push_back(normalized);
+}
+
 OperationResult ExcludeManager::load()
 {
     excluded_paths_.clear();
@@ -115,6 +158,12 @@ bool ExcludeManager::isExcluded(const fs::path& path) const
 
     if (isSystemExcluded(normalized_path)) {
         return true;
+    }
+
+    for (const fs::path& internal : internal_excluded_paths_) {
+        if (isUnderPath(current, internal)) {
+            return true;
+        }
     }
 
     if (excluded_lookup_.empty()) {

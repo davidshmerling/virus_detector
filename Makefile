@@ -17,6 +17,7 @@ OBJECTS = \
 	CommandParser \
 	ConsolePrinter \
 	Logger \
+	PerformanceProfiler \
 	ScannerCore \
 	FileProcessor \
 	QuarantineManager \
@@ -55,6 +56,7 @@ $(eval $(call COMPILE,Application,Application/Application.cpp))
 $(eval $(call COMPILE,CommandParser,CLI/CommandParser.cpp))
 $(eval $(call COMPILE,ConsolePrinter,CLI/ConsolePrinter.cpp))
 $(eval $(call COMPILE,Logger,Logger/Logger.cpp))
+$(eval $(call COMPILE,PerformanceProfiler,Performance/PerformanceProfiler.cpp))
 $(eval $(call COMPILE,ScannerCore,Scanner/Scanner.cpp))
 $(eval $(call COMPILE,FileProcessor,Scanner/FileProcessor.cpp))
 $(eval $(call COMPILE,QuarantineManager,Quarantine/QuarantineManager.cpp))

@@ -17,21 +17,46 @@ Scanner::Scanner(
     std::string exclude_file,
     QuarantineManager& quarantine_manager,
     Logger& logger,
+    PerformanceProfiler& profiler,
+    fs::path project_root,
     std::size_t worker_count,
     std::size_t queue_capacity)
     : signature_manager_(std::move(signatures_file)),
       exclude_manager_(std::move(exclude_file)),
       file_enumerator_(exclude_manager_, logger),
       checkpoint_repository_("runtime/resume/checkpoint.json"),
-      progress_tracker_(checkpoint_repository_, logger),
+      progress_tracker_(checkpoint_repository_, logger, profiler),
       cache_manager_(
           std::make_unique<JsonCacheRepository>("runtime/cache/cache.json"),
           logger,
           100),
       quarantine_manager_(quarantine_manager),
       thread_pool_(worker_count, queue_capacity),
-      logger_(logger)
+      logger_(logger),
+      profiler_(profiler),
+      project_root_(std::move(project_root))
 {
+}
+
+void Scanner::applyInternalExclusions(const fs::path& scan_root)
+{
+    exclude_manager_.clearInternalExcludedPaths();
+
+    // Always skip scanner infrastructure under the project root.
+    exclude_manager_.addInternalExcludedPath(project_root_ / "runtime");
+    exclude_manager_.addInternalExcludedPath(project_root_ / "build");
+    exclude_manager_.addInternalExcludedPath(project_root_ / ".git");
+    exclude_manager_.addInternalExcludedPath(
+        project_root_ / "config" / "signatures.txt");
+
+    // Full-filesystem scan: also skip the whole project tree so we do not
+    // scan/quarantine our own sources, docs, or config.
+    // Targeted `scan <path>` must still be able to scan e.g. ./test_scan.
+    if (scan_root == scan_root.root_path()) {
+        exclude_manager_.addInternalExcludedPath(project_root_);
+        logger_.info(
+            "scan-all: excluding project root " + project_root_.string());
+    }
 }
 
 bool Scanner::normalizeRoot(
@@ -211,6 +236,7 @@ bool Scanner::createFileProcessor()
         cache_manager_,
         quarantine_manager_,
         logger_,
+        profiler_,
         signatures_last_modified_);
 
     return file_processor_ != nullptr;
@@ -248,6 +274,10 @@ bool Scanner::submitFile(
     const fs::path& root,
     ScanSummary& summary)
 {
+    ScopedPerformanceTimer timer(
+        profiler_,
+        PerformanceSection::SubmitTask);
+
     ++summary.discovered;
 
     std::error_code error;
@@ -331,8 +361,14 @@ void Scanner::finishScan(
     thread_pool_.wait();
     progress_tracker_.flush();
 
-    if (!cache_manager_.flush()) {
-        logger_.error("Could not flush cache");
+    {
+        ScopedPerformanceTimer timer(
+            profiler_,
+            PerformanceSection::CacheFlush);
+
+        if (!cache_manager_.flush()) {
+            logger_.error("Could not flush cache");
+        }
     }
 
     if (!enumeration_ok) {
@@ -347,6 +383,10 @@ void Scanner::finishScan(
 
 ScanSummary Scanner::scanRoot(const fs::path& root)
 {
+    ScopedPerformanceTimer total_timer(
+        profiler_,
+        PerformanceSection::TotalScan);
+
     ScanSummary summary;
 
     if (!initialized_ || !file_processor_) {
@@ -366,6 +406,8 @@ ScanSummary Scanner::scanRoot(const fs::path& root)
     logger_.info("Scan started. Root: " + normalized_root.string());
     ConsolePrinter::printScanStarted(normalized_root.string());
 
+    applyInternalExclusions(normalized_root);
+
     ScanCheckpoint checkpoint;
     bool resuming = false;
 
@@ -374,8 +416,16 @@ ScanSummary Scanner::scanRoot(const fs::path& root)
         return summary;
     }
 
-    const bool enumeration_ok =
-        enumerateFiles(normalized_root, resuming, checkpoint, summary);
+    bool enumeration_ok = false;
+
+    {
+        ScopedPerformanceTimer timer(
+            profiler_,
+            PerformanceSection::Enumeration);
+
+        enumeration_ok =
+            enumerateFiles(normalized_root, resuming, checkpoint, summary);
+    }
 
     finishScan(normalized_root, enumeration_ok, summary);
 

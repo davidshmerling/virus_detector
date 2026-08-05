@@ -2,6 +2,7 @@
 
 #include "Cache/CacheManager.h"
 #include "Logger/Logger.h"
+#include "Performance/PerformanceProfiler.h"
 #include "Quarantine/QuarantineManager.h"
 #include "Scanner/Automaton/AhoCorasick.h"
 #include "Scanner/FileScanner/FileScanner.h"
@@ -19,6 +20,7 @@ public:
         CacheManager& cache_manager,
         QuarantineManager& quarantine_manager,
         Logger& logger,
+        PerformanceProfiler& profiler,
         std::int64_t signatures_last_modified);
 
     void process(
@@ -50,5 +52,6 @@ private:
     CacheManager& cache_manager_;
     QuarantineManager& quarantine_manager_;
     Logger& logger_;
+    PerformanceProfiler& profiler_;
     std::int64_t signatures_last_modified_;
 };

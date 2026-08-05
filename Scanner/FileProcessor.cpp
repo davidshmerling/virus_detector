@@ -11,12 +11,14 @@ FileProcessor::FileProcessor(
     CacheManager& cache_manager,
     QuarantineManager& quarantine_manager,
     Logger& logger,
+    PerformanceProfiler& profiler,
     std::int64_t signatures_last_modified)
     : automaton_(automaton),
       signature_manager_(signature_manager),
       cache_manager_(cache_manager),
       quarantine_manager_(quarantine_manager),
       logger_(logger),
+      profiler_(profiler),
       signatures_last_modified_(signatures_last_modified)
 {
 }
@@ -25,6 +27,10 @@ bool FileProcessor::checkCache(
     const fs::path& file_path,
     ScanSummary& summary)
 {
+    ScopedPerformanceTimer timer(
+        profiler_,
+        PerformanceSection::CacheValidation);
+
     const auto cached_verdict = cache_manager_.getValidVerdict(
         file_path,
         signatures_last_modified_);
@@ -75,7 +81,20 @@ void FileProcessor::handleMaliciousFile(
         ", signature: " +
         matched_signature);
 
-    if (!quarantine_manager_.quarantine(file_path, matched_signature)) {
+    bool quarantine_success = false;
+
+    {
+        ScopedPerformanceTimer timer(
+            profiler_,
+            PerformanceSection::Quarantine);
+
+        quarantine_success =
+            quarantine_manager_.quarantine(
+                file_path,
+                matched_signature);
+    }
+
+    if (!quarantine_success) {
         logger_.error(
             formatError({
                 ErrorCode::QuarantineFailed,
@@ -108,6 +127,10 @@ void FileProcessor::process(
     const fs::path& file_path,
     ScanSummary& summary)
 {
+    ScopedPerformanceTimer timer(
+        profiler_,
+        PerformanceSection::FileProcessing);
+
     if (checkCache(file_path, summary)) {
         return;
     }

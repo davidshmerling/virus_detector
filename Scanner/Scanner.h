@@ -3,6 +3,7 @@
 #include "Cache/CacheManager.h"
 #include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
+#include "Performance/PerformanceProfiler.h"
 #include "Quarantine/QuarantineManager.h"
 #include "Resume/JsonCheckpointRepository.h"
 #include "Resume/ProgressTracker.h"
@@ -25,6 +26,8 @@ public:
         std::string exclude_file,
         QuarantineManager& quarantine_manager,
         Logger& logger,
+        PerformanceProfiler& profiler,
+        std::filesystem::path project_root,
         std::size_t worker_count = 0,
         std::size_t queue_capacity = 256);
 
@@ -68,6 +71,7 @@ private:
     bool initializeCache();
     bool initializeQuarantine();
     bool createFileProcessor();
+    void applyInternalExclusions(const std::filesystem::path& scan_root);
 
     SignatureManager signature_manager_;
     AhoCorasick automaton_;
@@ -79,6 +83,8 @@ private:
     QuarantineManager& quarantine_manager_;
     ThreadPool thread_pool_;
     Logger& logger_;
+    PerformanceProfiler& profiler_;
+    std::filesystem::path project_root_;
 
     std::unique_ptr<FileProcessor> file_processor_;
 
