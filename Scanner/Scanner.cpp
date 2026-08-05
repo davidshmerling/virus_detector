@@ -15,7 +15,7 @@ namespace fs = std::filesystem;
 Scanner::Scanner(
     std::string signatures_file,
     std::string exclude_file,
-    fs::path quarantine_directory,
+    QuarantineManager& quarantine_manager,
     Logger& logger,
     std::size_t worker_count,
     std::size_t queue_capacity)
@@ -28,18 +28,29 @@ Scanner::Scanner(
           std::make_unique<JsonCacheRepository>("runtime/cache/cache.json"),
           logger,
           100),
-      quarantine_manager_(
-          std::move(quarantine_directory),
-          logger),
+      quarantine_manager_(quarantine_manager),
       thread_pool_(worker_count, queue_capacity),
       logger_(logger)
 {
 }
 
-fs::path Scanner::normalizeRoot(const fs::path& root)
+bool Scanner::normalizeRoot(
+    const fs::path& root,
+    fs::path& normalized) const
 {
     std::error_code error;
-    return fs::absolute(root, error).lexically_normal();
+    normalized = fs::absolute(root, error).lexically_normal();
+
+    if (error) {
+        logger_.error(
+            formatError({
+                ErrorCode::InvalidArgument,
+                "Could not normalize root: " + root.string() +
+                    " - " + error.message()}));
+        return false;
+    }
+
+    return true;
 }
 
 bool Scanner::loadRunningCheckpoint(
@@ -58,8 +69,16 @@ bool Scanner::loadRunningCheckpoint(
         return false;
     }
 
-    return normalizeRoot(checkpoint.root).generic_string() ==
-           normalizeRoot(root).generic_string();
+    fs::path checkpoint_root;
+    fs::path current_root;
+
+    if (!normalizeRoot(checkpoint.root, checkpoint_root) ||
+        !normalizeRoot(root, current_root)) {
+        return false;
+    }
+
+    return checkpoint_root.generic_string() ==
+           current_root.generic_string();
 }
 
 bool Scanner::initialize()
@@ -110,7 +129,6 @@ bool Scanner::initialize()
     }
 
     if (!cache_manager_.initialize()) {
-        // Cache is an optimization — continue with an empty cache.
         logger_.warning(
             "Cache could not be loaded. Starting with empty cache");
     }
@@ -124,193 +142,129 @@ bool Scanner::initialize()
         return false;
     }
 
+    file_processor_ = std::make_unique<FileProcessor>(
+        automaton_,
+        signature_manager_,
+        cache_manager_,
+        quarantine_manager_,
+        logger_,
+        signatures_last_modified_);
+
     initialized_ = true;
     return true;
 }
 
-void Scanner::processFile(
-    const fs::path& file_path,
-    ScanSummary& summary)
+bool Scanner::prepareProgress(
+    const fs::path& root,
+    ScanCheckpoint& checkpoint,
+    bool& resuming)
 {
-    const auto cached_verdict = cache_manager_.getValidVerdict(
-        file_path,
-        signatures_last_modified_);
-
-    if (cached_verdict.has_value()) {
-        ++summary.cached;
-        return;
-    }
-
-    FileScanner file_scanner(automaton_);
-    const FileScanResult result = file_scanner.scan(file_path);
-
-    switch (result.verdict) {
-        case FileVerdict::Clean:
-            ++summary.scanned;
-            cache_manager_.update(
-                file_path,
-                signatures_last_modified_,
-                FileVerdict::Clean);
-            break;
-
-        case FileVerdict::Malicious: {
-            ++summary.scanned;
-            ++summary.malicious;
-
-            const auto& signatures =
-                signature_manager_.getSignatures();
-
-            std::string matched_signature = "unknown";
-
-            if (result.matched_signature_index < signatures.size()) {
-                matched_signature =
-                    signatures[result.matched_signature_index];
-            }
-
-            logger_.warning(
-                "Malicious file found: " +
-                result.file_path.string() +
-                ", signature: " +
-                matched_signature);
-
-            if (!quarantine_manager_.quarantine(
-                    result.file_path,
-                    matched_signature)) {
-
-                logger_.error(
-                    formatError({
-                        ErrorCode::QuarantineFailed,
-                        "Could not quarantine file: " +
-                            result.file_path.string()}));
-
-                ConsolePrinter::printError(
-                    "Malicious file was found but could not "
-                    "be quarantined: " +
-                    result.file_path.string());
-
-                ++summary.failed;
-            } else {
-                ++summary.quarantined;
-                ConsolePrinter::printMessage(
-                    "Malicious file moved to quarantine: " +
-                    result.file_path.string());
-            }
-
-            break;
-        }
-
-        case FileVerdict::Error:
-            logger_.error(formatError(result.error));
-            ++summary.failed;
-            break;
-    }
-}
-
-ScanSummary Scanner::scanRoot(const fs::path& root)
-{
-    ScanSummary summary;
-
-    if (!initialized_) {
-        logger_.error("Scan requested before scanner initialization");
-        ConsolePrinter::printError("Scanner is not initialized");
-        summary.failed = 1;
-        return summary;
-    }
-
-    const fs::path absolute_root = normalizeRoot(root);
-
-    logger_.info("Scan started. Root: " + absolute_root.string());
-    ConsolePrinter::printScanStarted(absolute_root.string());
-
-    ScanCheckpoint checkpoint;
-    const bool resuming = loadRunningCheckpoint(absolute_root, checkpoint);
+    resuming = loadRunningCheckpoint(root, checkpoint);
 
     if (resuming) {
         if (!progress_tracker_.resumeScan(checkpoint)) {
             logger_.error("Could not initialize scan progress");
-            summary.failed = 1;
-            return summary;
+            return false;
         }
 
         logger_.info(
             "Resuming scan from: " +
             checkpoint.next_unfinished_path.generic_string());
-    } else if (!progress_tracker_.startNewScan(absolute_root)) {
-        logger_.error("Could not initialize scan progress");
-        summary.failed = 1;
-        return summary;
+        return true;
     }
 
+    if (!progress_tracker_.startNewScan(root)) {
+        logger_.error("Could not initialize scan progress");
+        return false;
+    }
+
+    return true;
+}
+
+bool Scanner::submitFile(
+    const fs::path& file_path,
+    const fs::path& root,
+    ScanSummary& summary)
+{
+    ++summary.discovered;
+
+    std::error_code error;
+    const fs::path relative_path =
+        fs::relative(file_path, root, error).lexically_normal();
+
+    if (error) {
+        logger_.warning(
+            "Could not create relative path: " +
+            file_path.string());
+        return true;
+    }
+
+    if (!progress_tracker_.registerTask(relative_path)) {
+        logger_.error(
+            "Could not register task: " +
+            relative_path.string());
+        return false;
+    }
+
+    const bool enqueued = thread_pool_.enqueue(
+        [this, file_path, relative_path, &summary]() {
+            try {
+                file_processor_->process(file_path, summary);
+            } catch (const std::exception& exception) {
+                logger_.error(
+                    "Unhandled error while scanning " +
+                    file_path.string() +
+                    ": " +
+                    exception.what());
+                ++summary.failed;
+            } catch (...) {
+                logger_.error(
+                    "Unknown error while scanning: " +
+                    file_path.string());
+                ++summary.failed;
+            }
+
+            progress_tracker_.markCompleted(relative_path);
+        });
+
+    if (!enqueued) {
+        progress_tracker_.cancelTask(relative_path);
+        logger_.error(
+            "Could not enqueue task: " +
+            file_path.string());
+        return false;
+    }
+
+    return true;
+}
+
+bool Scanner::enumerateFiles(
+    const fs::path& root,
+    bool resuming,
+    const ScanCheckpoint& checkpoint,
+    ScanSummary& summary)
+{
     const auto on_file =
         [&](const fs::path& file_path) -> bool {
-            ++summary.discovered;
-
-            std::error_code error;
-            const fs::path relative_path =
-                fs::relative(file_path, absolute_root, error)
-                    .lexically_normal();
-
-            if (error) {
-                logger_.warning(
-                    "Could not create relative path: " +
-                    file_path.string());
-                return true;
-            }
-
-            if (!progress_tracker_.registerTask(relative_path)) {
-                logger_.error(
-                    "Could not register task: " +
-                    relative_path.string());
-                return false;
-            }
-
-            const bool enqueued = thread_pool_.enqueue(
-                [this, file_path, relative_path, &summary]() {
-                    /*
-                     * Always mark completed, even on failure,
-                     * so the checkpoint never stalls forever.
-                     */
-                    try {
-                        processFile(file_path, summary);
-                    } catch (const std::exception& exception) {
-                        logger_.error(
-                            "Unhandled error while scanning " +
-                            file_path.string() +
-                            ": " +
-                            exception.what());
-                        ++summary.failed;
-                    } catch (...) {
-                        logger_.error(
-                            "Unknown error while scanning: " +
-                            file_path.string());
-                        ++summary.failed;
-                    }
-
-                    progress_tracker_.markCompleted(relative_path);
-                });
-
-            if (!enqueued) {
-                progress_tracker_.cancelTask(relative_path);
-                logger_.error(
-                    "Could not enqueue task: " +
-                    file_path.string());
-                return false;
-            }
-
-            return true;
+            return submitFile(file_path, root, summary);
         };
 
-    const bool enumeration_ok = resuming
-        ? file_enumerator_.resumeFromSorted(
-              absolute_root,
-              checkpoint.next_unfinished_path,
-              summary,
-              on_file)
-        : file_enumerator_.enumerateSorted(
-              absolute_root,
-              summary,
-              on_file);
+    if (resuming) {
+        return file_enumerator_.resumeFromSorted(
+            root,
+            checkpoint.next_unfinished_path,
+            summary,
+            on_file);
+    }
 
+    return file_enumerator_.enumerateSorted(root, summary, on_file);
+}
+
+void Scanner::finishScan(
+    const fs::path& root,
+    bool enumeration_ok,
+    ScanSummary& summary)
+{
     progress_tracker_.markEnumerationFinished();
     thread_pool_.wait();
     progress_tracker_.flush();
@@ -323,10 +277,45 @@ ScanSummary Scanner::scanRoot(const fs::path& root)
         logger_.warning("Scan stopped before completion");
         ++summary.failed;
     } else {
-        logger_.info("Scan completed: " + absolute_root.string());
+        logger_.info("Scan completed: " + root.string());
     }
 
     logger_.info(summary.toLogLine());
+}
+
+ScanSummary Scanner::scanRoot(const fs::path& root)
+{
+    ScanSummary summary;
+
+    if (!initialized_ || !file_processor_) {
+        logger_.error("Scan requested before scanner initialization");
+        ConsolePrinter::printError("Scanner is not initialized");
+        summary.failed = 1;
+        return summary;
+    }
+
+    fs::path normalized_root;
+    if (!normalizeRoot(root, normalized_root)) {
+        ConsolePrinter::printError("Could not normalize scan root");
+        summary.failed = 1;
+        return summary;
+    }
+
+    logger_.info("Scan started. Root: " + normalized_root.string());
+    ConsolePrinter::printScanStarted(normalized_root.string());
+
+    ScanCheckpoint checkpoint;
+    bool resuming = false;
+
+    if (!prepareProgress(normalized_root, checkpoint, resuming)) {
+        ++summary.failed;
+        return summary;
+    }
+
+    const bool enumeration_ok =
+        enumerateFiles(normalized_root, resuming, checkpoint, summary);
+
+    finishScan(normalized_root, enumeration_ok, summary);
 
     return summary;
 }

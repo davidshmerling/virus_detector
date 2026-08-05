@@ -6,11 +6,9 @@ namespace fs = std::filesystem;
 
 ProgressTracker::ProgressTracker(
     JsonCheckpointRepository& repository,
-    Logger& logger,
-    std::size_t flush_interval)
+    Logger& logger)
     : repository_(repository),
-      logger_(logger),
-      flush_interval_(flush_interval == 0 ? 1 : flush_interval)
+      logger_(logger)
 {
 }
 
@@ -20,14 +18,13 @@ bool ProgressTracker::startNewScan(const fs::path& root)
 
     unfinished_paths_.clear();
     enumeration_finished_ = false;
-    dirty_count_ = 0;
 
     checkpoint_.version = 2;
     checkpoint_.root = fs::absolute(root).lexically_normal();
     checkpoint_.next_unfinished_path.clear();
     checkpoint_.status = "running";
 
-    return saveLocked(true);
+    return saveLocked();
 }
 
 bool ProgressTracker::resumeScan(const ScanCheckpoint& checkpoint)
@@ -36,7 +33,6 @@ bool ProgressTracker::resumeScan(const ScanCheckpoint& checkpoint)
 
     unfinished_paths_.clear();
     enumeration_finished_ = false;
-    dirty_count_ = 0;
     checkpoint_ = checkpoint;
 
     return true;
@@ -46,10 +42,18 @@ bool ProgressTracker::registerTask(const fs::path& relative_path)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    unfinished_paths_.insert(pathKey(relative_path));
-    ++dirty_count_;
+    const std::string old_first =
+        unfinished_paths_.empty() ? "" : *unfinished_paths_.begin();
 
-    return saveLocked(false);
+    unfinished_paths_.insert(pathKey(relative_path));
+
+    const std::string new_first = *unfinished_paths_.begin();
+
+    if (old_first == new_first) {
+        return true;
+    }
+
+    return saveLocked();
 }
 
 bool ProgressTracker::cancelTask(const fs::path& relative_path)
@@ -57,26 +61,34 @@ bool ProgressTracker::cancelTask(const fs::path& relative_path)
     std::lock_guard<std::mutex> lock(mutex_);
 
     unfinished_paths_.erase(pathKey(relative_path));
-    ++dirty_count_;
-
-    // Keep disk consistent after a failed enqueue.
-    return saveLocked(true);
+    return saveLocked();
 }
 
 bool ProgressTracker::markCompleted(const fs::path& relative_path)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    unfinished_paths_.erase(pathKey(relative_path));
-    ++dirty_count_;
+    const std::string key = pathKey(relative_path);
+
+    const std::string old_first =
+        unfinished_paths_.empty() ? "" : *unfinished_paths_.begin();
+
+    unfinished_paths_.erase(key);
 
     if (enumeration_finished_ && unfinished_paths_.empty()) {
         checkpoint_.status = "completed";
         checkpoint_.next_unfinished_path.clear();
-        return saveLocked(true);
+        return saveLocked();
     }
 
-    return saveLocked(false);
+    const std::string new_first =
+        unfinished_paths_.empty() ? "" : *unfinished_paths_.begin();
+
+    if (old_first == new_first) {
+        return true;
+    }
+
+    return saveLocked();
 }
 
 bool ProgressTracker::markEnumerationFinished()
@@ -90,13 +102,13 @@ bool ProgressTracker::markEnumerationFinished()
         checkpoint_.next_unfinished_path.clear();
     }
 
-    return saveLocked(true);
+    return saveLocked();
 }
 
 bool ProgressTracker::flush()
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    return saveLocked(true);
+    return saveLocked();
 }
 
 const ScanCheckpoint& ProgressTracker::checkpoint() const
@@ -118,19 +130,14 @@ void ProgressTracker::refreshNextPathLocked()
     }
 }
 
-bool ProgressTracker::saveLocked(bool force)
+bool ProgressTracker::saveLocked()
 {
     refreshNextPathLocked();
-
-    if (!force && dirty_count_ < flush_interval_) {
-        return true;
-    }
 
     if (!repository_.save(checkpoint_)) {
         logger_.error("Could not save checkpoint");
         return false;
     }
 
-    dirty_count_ = 0;
     return true;
 }

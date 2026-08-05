@@ -55,14 +55,20 @@ Example:
 
 ```text
 .
+├── Application/         CLI orchestration (run commands)
 ├── CLI/                 Command parsing and console output
 ├── Cache/               Scan-result cache (JSON repository)
 ├── Common/              Shared types (Error, OperationResult, FileVerdict)
 ├── Exclude/             Exclusion list + built-in system paths
 ├── Logger/              Thread-safe file logger
-├── Quarantine/          Quarantine manager + metadata repository
+├── Quarantine/          Quarantine manager, FileMover, metadata repository
 ├── Resume/              Checkpoint + ProgressTracker
-├── Scanner/             Orchestration, enumerator, file scan, Aho-Corasick
+├── Scanner/
+│   ├── FileProcessor    Single-file cache/scan/quarantine
+│   ├── FileEnumerator/  Sorted DFS + SortedDirectoryReader
+│   ├── FileScanner/     Chunked signature scan
+│   ├── Automaton/       Aho-Corasick
+│   └── SignatureManager/
 ├── ThreadPool/          Worker pool with bounded queue
 ├── config/              signatures.txt, exclude.txt
 ├── runtime/             logs, cache, resume, quarantine (gitignored data)
@@ -109,7 +115,7 @@ These data files are ignored by git (directories kept via `.gitkeep`).
 FileEnumerator (sorted DFS)
     → ProgressTracker::registerTask
     → ThreadPool::enqueue
-    → Scanner::processFile  (Cache / FileScanner / Quarantine)
+    → FileProcessor::process  (Cache / FileScanner / Quarantine)
     → ProgressTracker::markCompleted
 ```
 
@@ -122,7 +128,7 @@ FileEnumerator (sorted DFS)
 **Flush policy**
 
 - Cache: every 100 dirty updates (safe to lose some on crash → only re-scan cost)
-- Checkpoint: every 10 dirty updates, always forced on completion / end of scan
+- Checkpoint: save only when the resume frontier (`next_unfinished_path`) moves, plus forced flush at end of scan
 
 ## Requirements coverage
 

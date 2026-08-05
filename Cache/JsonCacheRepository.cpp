@@ -91,10 +91,8 @@ bool JsonCacheRepository::load(CacheMap& entries) const
             entry.file_last_modified =
                 value.at("file_last_modified").get<std::int64_t>();
 
-            // Older cache files without file_size are treated as size 0
-            // and will miss until the entry is refreshed.
             entry.file_size =
-                value.value("file_size", static_cast<std::uintmax_t>(0));
+                value.at("file_size").get<std::uintmax_t>();
 
             entry.signatures_last_modified =
                 value.at("signatures_last_modified").get<std::int64_t>();

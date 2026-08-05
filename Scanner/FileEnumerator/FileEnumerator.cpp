@@ -1,6 +1,5 @@
 #include "Scanner/FileEnumerator/FileEnumerator.h"
 
-#include <algorithm>
 #include <system_error>
 
 namespace fs = std::filesystem;
@@ -9,7 +8,8 @@ FileEnumerator::FileEnumerator(
     const ExcludeManager& exclude_manager,
     Logger& logger)
     : exclude_manager_(exclude_manager),
-      logger_(logger)
+      logger_(logger),
+      directory_reader_(logger)
 {
 }
 
@@ -48,6 +48,58 @@ bool FileEnumerator::skipSymbolicLink(
     return true;
 }
 
+bool FileEnumerator::shouldSkip(
+    const fs::path& path,
+    ScanSummary& summary) const
+{
+    if (skipSymbolicLink(path, summary)) {
+        return true;
+    }
+
+    if (exclude_manager_.isExcluded(path)) {
+        ++summary.excluded;
+        return true;
+    }
+
+    return false;
+}
+
+bool FileEnumerator::processWholeEntry(
+    const fs::directory_entry& entry,
+    ScanSummary& summary,
+    const FileCallback& on_file) const
+{
+    const fs::path path = entry.path();
+
+    if (shouldSkip(path, summary)) {
+        return true;
+    }
+
+    std::error_code error;
+
+    if (entry.is_directory(error)) {
+        if (error) {
+            logEntryAccessError(path, "Stat", error);
+            return true;
+        }
+
+        return walkAll(path, summary, on_file);
+    }
+
+    error.clear();
+
+    if (entry.is_regular_file(error)) {
+        if (error) {
+            logEntryAccessError(path, "Stat", error);
+            return true;
+        }
+
+        return on_file(path);
+    }
+
+    return true;
+}
+
 bool FileEnumerator::enumerateSorted(
     const fs::path& root,
     ScanSummary& summary,
@@ -60,12 +112,7 @@ bool FileEnumerator::enumerateSorted(
         return false;
     }
 
-    if (exclude_manager_.isExcluded(root)) {
-        ++summary.excluded;
-        return true;
-    }
-
-    if (skipSymbolicLink(root, summary)) {
+    if (shouldSkip(root, summary)) {
         return true;
     }
 
@@ -126,48 +173,14 @@ bool FileEnumerator::walkAll(
         return true;
     }
 
-    const auto children = getSortedChildren(directory);
+    std::vector<fs::directory_entry> children;
+    if (!directory_reader_.read(directory, children)) {
+        return true;
+    }
 
     for (const fs::directory_entry& entry : children) {
-        const fs::path path = entry.path();
-
-        if (skipSymbolicLink(path, summary)) {
-            continue;
-        }
-
-        std::error_code error;
-
-        if (exclude_manager_.isExcluded(path)) {
-            ++summary.excluded;
-            continue;
-        }
-
-        error.clear();
-
-        if (entry.is_directory(error)) {
-            if (error) {
-                logEntryAccessError(path, "Stat", error);
-                continue;
-            }
-
-            if (!walkAll(path, summary, on_file)) {
-                return false;
-            }
-
-            continue;
-        }
-
-        error.clear();
-
-        if (entry.is_regular_file(error)) {
-            if (error) {
-                logEntryAccessError(path, "Stat", error);
-                continue;
-            }
-
-            if (!on_file(path)) {
-                return false;
-            }
+        if (!processWholeEntry(entry, summary, on_file)) {
+            return false;
         }
     }
 
@@ -191,7 +204,11 @@ bool FileEnumerator::walkResume(
     }
 
     const std::string& target_name = resume_parts[depth];
-    const auto children = getSortedChildren(directory);
+
+    std::vector<fs::directory_entry> children;
+    if (!directory_reader_.read(directory, children)) {
+        return true;
+    }
 
     for (const fs::directory_entry& entry : children) {
         const fs::path path = entry.path();
@@ -207,38 +224,10 @@ bool FileEnumerator::walkResume(
             continue;
         }
 
-        std::error_code error;
-
         if (current_name > target_name) {
-            if (exclude_manager_.isExcluded(path)) {
-                ++summary.excluded;
-                continue;
+            if (!processWholeEntry(entry, summary, on_file)) {
+                return false;
             }
-
-            if (entry.is_directory(error)) {
-                if (error) {
-                    logEntryAccessError(path, "Stat", error);
-                    continue;
-                }
-
-                if (!walkAll(path, summary, on_file)) {
-                    return false;
-                }
-            } else {
-                error.clear();
-
-                if (entry.is_regular_file(error)) {
-                    if (error) {
-                        logEntryAccessError(path, "Stat", error);
-                        continue;
-                    }
-
-                    if (!on_file(path)) {
-                        return false;
-                    }
-                }
-            }
-
             continue;
         }
 
@@ -246,91 +235,33 @@ bool FileEnumerator::walkResume(
             depth + 1 == resume_parts.size();
 
         if (is_last_component) {
-            if (exclude_manager_.isExcluded(path)) {
-                ++summary.excluded;
-                continue;
+            if (!processWholeEntry(entry, summary, on_file)) {
+                return false;
             }
-
-            if (entry.is_regular_file(error)) {
-                if (error) {
-                    logEntryAccessError(path, "Stat", error);
-                    continue;
-                }
-
-                if (!on_file(path)) {
-                    return false;
-                }
-            } else if (entry.is_directory(error)) {
-                if (error) {
-                    logEntryAccessError(path, "Stat", error);
-                    continue;
-                }
-
-                if (!walkAll(path, summary, on_file)) {
-                    return false;
-                }
-            }
-
             continue;
         }
 
-        if (exclude_manager_.isExcluded(path)) {
-            ++summary.excluded;
+        if (shouldSkip(path, summary)) {
             continue;
         }
 
+        std::error_code error;
         if (entry.is_directory(error)) {
             if (error) {
                 logEntryAccessError(path, "Stat", error);
                 continue;
             }
 
-            if (!walkResume(path, resume_parts, depth + 1, summary, on_file)) {
+            if (!walkResume(
+                    path,
+                    resume_parts,
+                    depth + 1,
+                    summary,
+                    on_file)) {
                 return false;
             }
         }
     }
 
     return true;
-}
-
-std::vector<fs::directory_entry> FileEnumerator::getSortedChildren(
-    const fs::path& directory) const
-{
-    std::vector<fs::directory_entry> children;
-
-    std::error_code error;
-    fs::directory_iterator iterator(
-        directory,
-        fs::directory_options::skip_permission_denied,
-        error);
-
-    if (error) {
-        logEntryAccessError(directory, "Open directory", error);
-        return children;
-    }
-
-    const fs::directory_iterator end;
-
-    while (iterator != end) {
-        const fs::path entry_path = iterator->path();
-        children.push_back(*iterator);
-
-        iterator.increment(error);
-        if (error) {
-            logEntryAccessError(entry_path, "Read directory entry", error);
-            error.clear();
-        }
-    }
-
-    std::sort(
-        children.begin(),
-        children.end(),
-        [](const fs::directory_entry& left,
-           const fs::directory_entry& right) {
-            return left.path().filename().generic_string()
-                 < right.path().filename().generic_string();
-        });
-
-    return children;
 }

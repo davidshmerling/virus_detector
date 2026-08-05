@@ -48,6 +48,10 @@ bool QuarantineRepository::initialize()
     std::error_code error;
     fs::create_directories(metadata_file_.parent_path(), error);
 
+    if (error) {
+        return false;
+    }
+
     entries_.clear();
     return load(entries_);
 }

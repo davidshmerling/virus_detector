@@ -55,27 +55,25 @@ bool QuarantineManager::quarantine(
         return false;
     }
 
-    const std::string id = generateId();
-    const fs::path extension = file_path.extension();
-    const fs::path destination =
-        files_directory_ / (id + extension.string());
+    const UniqueDestination destination =
+        createUniqueDestination(file_path);
 
-    if (!moveFile(file_path, destination)) {
+    if (!file_mover_.move(file_path, destination.path)) {
         logger_.error(
             "Quarantine failed: could not move file to quarantine");
         return false;
     }
 
     QuarantineEntry entry;
-    entry.id = id;
+    entry.id = destination.id;
     entry.original_path = file_path;
-    entry.quarantine_path = destination;
+    entry.quarantine_path = destination.path;
     entry.signature = signature;
-    entry.file_size = fs::file_size(destination, error);
+    entry.file_size = fs::file_size(destination.path, error);
     entry.quarantined_at = currentTime();
 
     if (!repository_.add(entry)) {
-        moveFile(destination, file_path);
+        file_mover_.move(destination.path, file_path);
         logger_.error(
             "Quarantine failed: could not save metadata, file restored");
         return false;
@@ -83,7 +81,7 @@ bool QuarantineManager::quarantine(
 
     logger_.info(
         "File quarantined: " + file_path.string() +
-        ", id: " + id);
+        ", id: " + destination.id);
     return true;
 }
 
@@ -120,7 +118,7 @@ bool QuarantineManager::restore(const std::string& id)
         return false;
     }
 
-    if (!moveFile(entry->quarantine_path, entry->original_path)) {
+    if (!file_mover_.move(entry->quarantine_path, entry->original_path)) {
         logger_.error("Restore failed: could not move file back");
         return false;
     }
@@ -172,6 +170,26 @@ std::vector<QuarantineEntry> QuarantineManager::list() const
     return repository_.list();
 }
 
+QuarantineManager::UniqueDestination
+QuarantineManager::createUniqueDestination(
+    const fs::path& original_path) const
+{
+    std::error_code error;
+
+    while (true) {
+        const std::string id = generateId();
+        const fs::path destination =
+            files_directory_ /
+            (id + original_path.extension().string());
+
+        if (!fs::exists(destination, error) && !error) {
+            return {id, destination};
+        }
+
+        error.clear();
+    }
+}
+
 std::string QuarantineManager::generateId() const
 {
     static std::mt19937 random(
@@ -204,29 +222,4 @@ std::string QuarantineManager::currentTime() const
     std::ostringstream stream;
     stream << std::put_time(&local_time, "%Y-%m-%d %H:%M:%S");
     return stream.str();
-}
-
-bool QuarantineManager::moveFile(
-    const fs::path& source,
-    const fs::path& destination)
-{
-    std::error_code error;
-    fs::rename(source, destination, error);
-
-    if (!error) {
-        return true;
-    }
-
-    fs::copy_file(
-        source,
-        destination,
-        fs::copy_options::overwrite_existing,
-        error);
-
-    if (error) {
-        return false;
-    }
-
-    fs::remove(source, error);
-    return !error;
 }

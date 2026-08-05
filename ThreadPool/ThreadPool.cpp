@@ -117,6 +117,8 @@ void ThreadPool::workerLoop()
          */
         try {
             task();
+        } catch (const std::exception&) {
+            // Last-resort guard; Scanner logs detailed errors.
         } catch (...) {
         }
 

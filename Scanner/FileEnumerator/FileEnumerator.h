@@ -2,6 +2,7 @@
 
 #include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
+#include "Scanner/FileEnumerator/SortedDirectoryReader.h"
 #include "Scanner/ScanSummary.h"
 
 #include <filesystem>
@@ -44,19 +45,25 @@ private:
         ScanSummary& summary,
         const FileCallback& on_file) const;
 
-    std::vector<fs::directory_entry> getSortedChildren(
-        const fs::path& directory) const;
+    bool shouldSkip(
+        const fs::path& path,
+        ScanSummary& summary) const;
+
+    bool processWholeEntry(
+        const fs::directory_entry& entry,
+        ScanSummary& summary,
+        const FileCallback& on_file) const;
 
     void logEntryAccessError(
         const fs::path& path,
         const char* action,
         const std::error_code& error) const;
 
-    // Does not follow the link. Returns true if traversal should skip this path.
     bool skipSymbolicLink(
         const fs::path& path,
         ScanSummary& summary) const;
 
     const ExcludeManager& exclude_manager_;
     Logger& logger_;
+    SortedDirectoryReader directory_reader_;
 };
