@@ -1,0 +1,11 @@
+# Antivirus runtime folders (absolute paths only for now)
+/workspace/virus_detector/runtime/quarantine
+/workspace/virus_detector/runtime/logs
+/workspace/virus_detector/runtime/cache
+/workspace/virus_detector/runtime/resume
+
+# User exclusions (examples)
+# /home/david/Downloads/temp
+# /home/david/movie.iso
+
+# System paths (/proc, /sys, /dev, /run, /tmp) are built into the program.

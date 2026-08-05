@@ -1,0 +1,6 @@
+# Malware signature strings (one string per line)
+# Change this file without recompiling the program
+Trojan
+Virus
+Backdoor
+HackTool
