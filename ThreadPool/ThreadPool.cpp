@@ -37,7 +37,7 @@ ThreadPool::ThreadPool(
 ThreadPool::~ThreadPool()
 {
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::scoped_lock lock(mutex_);
         stop_ = true;
     }
 
@@ -123,7 +123,7 @@ void ThreadPool::workerLoop()
         }
 
         {
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::scoped_lock lock(mutex_);
 
             --active_tasks_;
 

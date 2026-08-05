@@ -17,7 +17,7 @@ CacheManager::CacheManager(
 
 bool CacheManager::initialize()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!repository_) {
         logger_.error("Cache repository is missing");
@@ -45,7 +45,7 @@ std::optional<FileVerdict> CacheManager::getValidVerdict(
     const fs::path& file_path,
     std::int64_t signatures_last_modified) const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     const auto iterator = entries_.find(pathKey(file_path));
     if (iterator == entries_.end()) {
@@ -80,7 +80,7 @@ bool CacheManager::update(
     std::int64_t signatures_last_modified,
     FileVerdict verdict)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (verdict != FileVerdict::Clean) {
         return true;
@@ -113,7 +113,7 @@ bool CacheManager::update(
 
 bool CacheManager::remove(const fs::path& file_path)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     const std::size_t removed = entries_.erase(pathKey(file_path));
     if (removed == 0) {
@@ -131,7 +131,7 @@ bool CacheManager::remove(const fs::path& file_path)
 
 bool CacheManager::flush()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return flushUnlocked();
 }
 
@@ -156,7 +156,7 @@ bool CacheManager::flushUnlocked()
 
 std::size_t CacheManager::size() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return entries_.size();
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <format>
 #include <string>
 
 enum class ErrorCode {
@@ -32,13 +33,13 @@ struct Error {
     ErrorCode code = ErrorCode::None;
     std::string message;
 
-    bool hasError() const
+    [[nodiscard]] bool hasError() const noexcept
     {
         return code != ErrorCode::None;
     }
 };
 
-inline const char* errorCodeToString(ErrorCode code)
+[[nodiscard]] inline const char* errorCodeToString(ErrorCode code) noexcept
 {
     switch (code) {
         case ErrorCode::None:
@@ -83,10 +84,10 @@ inline const char* errorCodeToString(ErrorCode code)
     }
 }
 
-inline std::string formatError(const Error& error)
+[[nodiscard]] inline std::string formatError(const Error& error)
 {
-    return std::string("[") +
-           errorCodeToString(error.code) +
-           "] " +
-           error.message;
+    return std::format(
+        "[{}] {}",
+        errorCodeToString(error.code),
+        error.message);
 }

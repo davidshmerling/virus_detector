@@ -1,6 +1,7 @@
 #include "Scanner/Automaton/AhoCorasick.h"
 
 #include <queue>
+#include <ranges>
 
 void AhoCorasick::clear()
 {
@@ -12,13 +13,14 @@ void AhoCorasick::clear()
 void AhoCorasick::build(const std::vector<std::string>& signatures)
 {
     clear();
-    nodes_.emplace_back(); // root
+    nodes_.emplace_back();  // root
 
-    for (std::size_t i = 0; i < signatures.size(); ++i) {
-        if (signatures[i].empty())
+    for (const auto& [index, signature] : signatures | std::views::enumerate) {
+        if (signature.empty()) {
             continue;
+        }
 
-        addPattern(signatures[i], i);
+        addPattern(signature, static_cast<std::size_t>(index));
         ++signature_count_;
     }
 
@@ -32,7 +34,7 @@ void AhoCorasick::addPattern(
 {
     int state = 0;
 
-    for (unsigned char byte : pattern) {
+    for (const unsigned char byte : pattern) {
         int& nextState = nodes_[state].next[byte];
 
         if (nextState == -1) {
@@ -48,9 +50,7 @@ void AhoCorasick::addPattern(
 
 void AhoCorasick::initializeRootTransitions(std::queue<int>& pending)
 {
-    for (int byte = 0; byte < 256; ++byte) {
-        int& nextState = nodes_[0].next[byte];
-
+    for (int& nextState : nodes_[0].next) {
         if (nextState == -1) {
             nextState = 0;
         } else {
@@ -80,9 +80,7 @@ void AhoCorasick::bfsFailureLinks(std::queue<int>& pending)
 
             nodes_[nextState].failure_link = failureState;
 
-            const auto& inheritedOutput =
-                nodes_[failureState].output;
-
+            const auto& inheritedOutput = nodes_[failureState].output;
             nodes_[nextState].output.insert(
                 nodes_[nextState].output.end(),
                 inheritedOutput.begin(),

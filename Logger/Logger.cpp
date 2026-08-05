@@ -46,7 +46,7 @@ void Logger::error(const std::string& message)
 
 void Logger::write(LogLevel level, const std::string& message)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     if (!file_.is_open()) {
         return;

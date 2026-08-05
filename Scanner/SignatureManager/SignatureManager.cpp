@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <string_view>
 #include <unordered_set>
 
 namespace fs = std::filesystem;
@@ -13,18 +14,19 @@ SignatureManager::SignatureManager(std::string file_path)
 
 std::string SignatureManager::trim(const std::string& text)
 {
-    const std::size_t start = text.find_first_not_of(" \t\r\n");
-    if (start == std::string::npos) {
-        return "";
+    const std::string_view view = text;
+    const std::size_t start = view.find_first_not_of(" \t\r\n");
+    if (start == std::string_view::npos) {
+        return {};
     }
 
-    const std::size_t end = text.find_last_not_of(" \t\r\n");
-    return text.substr(start, end - start + 1);
+    const std::size_t end = view.find_last_not_of(" \t\r\n");
+    return std::string{view.substr(start, end - start + 1)};
 }
 
 bool SignatureManager::isValidSignature(const std::string& line)
 {
-    return !line.empty() && line[0] != '#';
+    return !line.empty() && !line.starts_with('#');
 }
 
 OperationResult SignatureManager::load()
@@ -49,7 +51,7 @@ OperationResult SignatureManager::load()
             continue;
         }
 
-        if (seen.find(line) != seen.end()) {
+        if (seen.contains(line)) {
             continue;
         }
 

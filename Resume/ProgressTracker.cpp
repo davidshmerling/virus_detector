@@ -14,7 +14,7 @@ ProgressTracker::ProgressTracker(
 
 bool ProgressTracker::startNewScan(const fs::path& root)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     unfinished_paths_.clear();
     enumeration_finished_ = false;
@@ -29,7 +29,7 @@ bool ProgressTracker::startNewScan(const fs::path& root)
 
 bool ProgressTracker::resumeScan(const ScanCheckpoint& checkpoint)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     unfinished_paths_.clear();
     enumeration_finished_ = false;
@@ -40,7 +40,7 @@ bool ProgressTracker::resumeScan(const ScanCheckpoint& checkpoint)
 
 bool ProgressTracker::registerTask(const fs::path& relative_path)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     const std::string old_first =
         unfinished_paths_.empty() ? "" : *unfinished_paths_.begin();
@@ -58,7 +58,7 @@ bool ProgressTracker::registerTask(const fs::path& relative_path)
 
 bool ProgressTracker::cancelTask(const fs::path& relative_path)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     unfinished_paths_.erase(pathKey(relative_path));
     return saveLocked();
@@ -66,7 +66,7 @@ bool ProgressTracker::cancelTask(const fs::path& relative_path)
 
 bool ProgressTracker::markCompleted(const fs::path& relative_path)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     const std::string key = pathKey(relative_path);
 
@@ -93,7 +93,7 @@ bool ProgressTracker::markCompleted(const fs::path& relative_path)
 
 bool ProgressTracker::markEnumerationFinished()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     enumeration_finished_ = true;
 
@@ -107,7 +107,7 @@ bool ProgressTracker::markEnumerationFinished()
 
 bool ProgressTracker::flush()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return saveLocked();
 }
 

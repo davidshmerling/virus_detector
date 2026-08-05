@@ -1,6 +1,7 @@
 #include "Exclude/ExcludeManager.h"
 
 #include <fstream>
+#include <string_view>
 
 namespace fs = std::filesystem;
 
@@ -14,22 +15,20 @@ const std::unordered_set<std::string> kSystemExcluded = {
     "/tmp",
 };
 
-bool isUnderExcludedPrefix(
-    const std::string& path,
-    const std::string& prefix)
+[[nodiscard]] bool isUnderExcludedPrefix(
+    std::string_view path,
+    std::string_view prefix)
 {
     if (path == prefix) {
         return true;
     }
 
-    if (path.size() <= prefix.size()) {
-        return false;
-    }
-
-    return path.compare(0, prefix.size() + 1, prefix + "/") == 0;
+    return path.size() > prefix.size() &&
+           path.starts_with(prefix) &&
+           path[prefix.size()] == '/';
 }
 
-bool isSystemExcluded(const std::string& normalized_path)
+[[nodiscard]] bool isSystemExcluded(std::string_view normalized_path)
 {
     for (const std::string& prefix : kSystemExcluded) {
         if (isUnderExcludedPrefix(normalized_path, prefix)) {
@@ -49,13 +48,14 @@ ExcludeManager::ExcludeManager(std::string file_path)
 
 std::string ExcludeManager::trim(const std::string& text)
 {
-    const std::size_t start = text.find_first_not_of(" \t\r\n");
-    if (start == std::string::npos) {
-        return "";
+    const std::string_view view = text;
+    const std::size_t start = view.find_first_not_of(" \t\r\n");
+    if (start == std::string_view::npos) {
+        return {};
     }
 
-    const std::size_t end = text.find_last_not_of(" \t\r\n");
-    return text.substr(start, end - start + 1);
+    const std::size_t end = view.find_last_not_of(" \t\r\n");
+    return std::string{view.substr(start, end - start + 1)};
 }
 
 fs::path ExcludeManager::normalize(const fs::path& path)
@@ -86,7 +86,7 @@ OperationResult ExcludeManager::load()
     while (std::getline(file, line)) {
         line = trim(line);
 
-        if (line.empty() || line[0] == '#') {
+        if (line.empty() || line.starts_with('#')) {
             continue;
         }
 
@@ -101,7 +101,7 @@ OperationResult ExcludeManager::load()
 
         const std::string key = path.generic_string();
         if (excluded_lookup_.insert(key).second) {
-            excluded_paths_.push_back(path);
+            excluded_paths_.push_back(std::move(path));
         }
     }
 
@@ -124,7 +124,7 @@ bool ExcludeManager::isExcluded(const fs::path& path) const
     fs::path walk = current;
 
     while (true) {
-        if (excluded_lookup_.count(walk.generic_string()) > 0) {
+        if (excluded_lookup_.contains(walk.generic_string())) {
             return true;
         }
 

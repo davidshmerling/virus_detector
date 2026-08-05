@@ -1,6 +1,7 @@
 #include "Scanner/FileEnumerator/SortedDirectoryReader.h"
 
 #include <algorithm>
+#include <format>
 #include <system_error>
 
 namespace fs = std::filesystem;
@@ -24,8 +25,10 @@ bool SortedDirectoryReader::read(
 
     if (error) {
         logger_.warning(
-            "Open directory failed for " + directory.string() +
-            ": " + error.message());
+            std::format(
+                "Open directory failed for {}: {}",
+                directory.string(),
+                error.message()));
         return false;
     }
 
@@ -38,16 +41,16 @@ bool SortedDirectoryReader::read(
         iterator.increment(error);
         if (error) {
             logger_.warning(
-                "Read directory entry failed for " +
-                entry_path.string() +
-                ": " + error.message());
+                std::format(
+                    "Read directory entry failed for {}: {}",
+                    entry_path.string(),
+                    error.message()));
             error.clear();
         }
     }
 
-    std::sort(
-        children.begin(),
-        children.end(),
+    std::ranges::sort(
+        children,
         [](const fs::directory_entry& left,
            const fs::directory_entry& right) {
             return left.path().filename().generic_string()

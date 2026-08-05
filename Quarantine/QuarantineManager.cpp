@@ -41,7 +41,7 @@ bool QuarantineManager::quarantine(
     const fs::path& file_path,
     const std::string& signature)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     std::error_code error;
 
@@ -87,7 +87,7 @@ bool QuarantineManager::quarantine(
 
 bool QuarantineManager::restore(const std::string& id)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     const std::optional<QuarantineEntry> entry =
         repository_.findById(id);
@@ -137,7 +137,7 @@ bool QuarantineManager::restore(const std::string& id)
 
 bool QuarantineManager::remove(const std::string& id)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     const std::optional<QuarantineEntry> entry =
         repository_.findById(id);
@@ -166,7 +166,7 @@ bool QuarantineManager::remove(const std::string& id)
 
 std::vector<QuarantineEntry> QuarantineManager::list() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return repository_.list();
 }
 

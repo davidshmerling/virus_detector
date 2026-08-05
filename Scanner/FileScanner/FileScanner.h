@@ -6,12 +6,13 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <span>
 
 struct FileScanResult {
     FileVerdict verdict = FileVerdict::Error;
     std::filesystem::path file_path;
     std::size_t matched_signature_index = 0;
-    Error error;
+    Error error{};
 };
 
 // Scans one file with the shared Aho-Corasick automaton.
@@ -22,13 +23,13 @@ public:
         const AhoCorasick& automaton,
         std::size_t chunk_size = 4 * 1024 * 1024);
 
-    FileScanResult scan(const std::filesystem::path& file_path) const;
+    [[nodiscard]] FileScanResult scan(
+        const std::filesystem::path& file_path) const;
 
 private:
     // Returns true when a signature match is found in the buffer.
-    bool scanBuffer(
-        const char* data,
-        std::size_t size,
+    [[nodiscard]] bool scanBuffer(
+        std::span<const char> data,
         int& state,
         std::size_t& matched_signature_index) const;
 

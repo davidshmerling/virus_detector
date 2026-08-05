@@ -3,26 +3,30 @@
 #include "Common/Error.h"
 
 #include <string>
+#include <utility>
 
-struct OperationResult {
+struct [[nodiscard]] OperationResult {
     bool success = false;
-    Error error;
+    Error error{};
+
+    explicit operator bool() const noexcept
+    {
+        return success;
+    }
 
     static OperationResult ok()
     {
-        OperationResult result;
-        result.success = true;
-        return result;
+        return OperationResult{.success = true};
     }
 
     static OperationResult fail(
         ErrorCode code,
-        const std::string& message)
+        std::string message)
     {
-        OperationResult result;
-        result.success = false;
-        result.error.code = code;
-        result.error.message = message;
-        return result;
+        return OperationResult{
+            .success = false,
+            .error = Error{
+                .code = code,
+                .message = std::move(message)}};
     }
 };

@@ -1,7 +1,6 @@
 #include "Scanner/FileScanner/FileScanner.h"
 
 #include <cerrno>
-#include <cstring>
 #include <fstream>
 #include <system_error>
 #include <vector>
@@ -17,13 +16,12 @@ FileScanner::FileScanner(
 }
 
 bool FileScanner::scanBuffer(
-    const char* data,
-    std::size_t size,
+    std::span<const char> data,
     int& state,
     std::size_t& matched_signature_index) const
 {
-    for (std::size_t i = 0; i < size; ++i) {
-        const auto byte = static_cast<unsigned char>(data[i]);
+    for (const char byte_value : data) {
+        const auto byte = static_cast<unsigned char>(byte_value);
         state = automaton_.nextState(state, byte);
 
         if (automaton_.hasMatch(state)) {
@@ -37,51 +35,48 @@ bool FileScanner::scanBuffer(
 
 FileScanResult FileScanner::scan(const fs::path& file_path) const
 {
-    FileScanResult result;
-    result.file_path = file_path;
+    FileScanResult result{
+        .verdict = FileVerdict::Error,
+        .file_path = file_path};
 
     std::error_code error;
 
     if (!fs::exists(file_path, error)) {
-        result.verdict = FileVerdict::Error;
-
         if (error) {
             result.error = {
-                ErrorCode::PermissionDenied,
-                "Could not inspect path: " + file_path.string() +
-                    " - " + error.message()};
+                .code = ErrorCode::PermissionDenied,
+                .message = "Could not inspect path: " + file_path.string() +
+                           " - " + error.message()};
         } else {
             result.error = {
-                ErrorCode::PathNotFound,
-                "Path does not exist: " + file_path.string()};
+                .code = ErrorCode::PathNotFound,
+                .message = "Path does not exist: " + file_path.string()};
         }
 
         return result;
     }
 
     if (error) {
-        result.verdict = FileVerdict::Error;
         result.error = {
-            ErrorCode::PermissionDenied,
-            "Could not inspect path: " + file_path.string() +
-                " - " + error.message()};
+            .code = ErrorCode::PermissionDenied,
+            .message = "Could not inspect path: " + file_path.string() +
+                       " - " + error.message()};
         return result;
     }
 
     error.clear();
 
     if (!fs::is_regular_file(file_path, error) || error) {
-        result.verdict = FileVerdict::Error;
-
         if (error) {
             result.error = {
-                ErrorCode::PermissionDenied,
-                "Could not inspect path: " + file_path.string() +
-                    " - " + error.message()};
+                .code = ErrorCode::PermissionDenied,
+                .message = "Could not inspect path: " + file_path.string() +
+                           " - " + error.message()};
         } else {
             result.error = {
-                ErrorCode::NotRegularFile,
-                "Path is not a regular file: " + file_path.string()};
+                .code = ErrorCode::NotRegularFile,
+                .message =
+                    "Path is not a regular file: " + file_path.string()};
         }
 
         return result;
@@ -89,11 +84,11 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
 
     std::ifstream file(file_path, std::ios::binary);
     if (!file.is_open()) {
-        result.verdict = FileVerdict::Error;
         result.error = {
-            ErrorCode::FileOpenFailed,
-            "Could not open file: " + file_path.string() +
-                " - " + std::strerror(errno)};
+            .code = ErrorCode::FileOpenFailed,
+            .message = "Could not open file: " + file_path.string() +
+                       " - " +
+                       std::system_category().message(errno)};
         return result;
     }
 
@@ -105,15 +100,16 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
 
     while (file) {
         file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-        const std::streamsize bytes_read = file.gcount();
+        const auto bytes_read = file.gcount();
 
         if (bytes_read <= 0) {
             break;
         }
 
         if (scanBuffer(
-                buffer.data(),
-                static_cast<std::size_t>(bytes_read),
+                std::span<const char>{
+                    buffer.data(),
+                    static_cast<std::size_t>(bytes_read)},
                 state,
                 result.matched_signature_index)) {
             result.verdict = FileVerdict::Malicious;
@@ -122,10 +118,10 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
     }
 
     if (file.bad()) {
-        result.verdict = FileVerdict::Error;
         result.error = {
-            ErrorCode::FileReadFailed,
-            "Read error while scanning file: " + file_path.string()};
+            .code = ErrorCode::FileReadFailed,
+            .message =
+                "Read error while scanning file: " + file_path.string()};
         return result;
     }
 

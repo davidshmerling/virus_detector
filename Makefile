@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -g -I. -Iexternal
+CXXFLAGS = -Wall -Wextra -std=c++23 -O2 -g -I. -Iexternal
 LDFLAGS = -pthread
 
 BUILD_DIR = build

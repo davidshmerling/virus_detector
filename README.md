@@ -1,6 +1,6 @@
 # Virus Detector
 
-A modular C++17 antivirus scanner for Linux. It scans files by signature matching, quarantines malicious files, caches clean results, supports resume after interruption, and runs file processing on a thread pool.
+A modular C++23 antivirus scanner for Linux. It scans files by signature matching, quarantines malicious files, caches clean results, supports resume after interruption, and runs file processing on a thread pool.
 
 ## Features
 
@@ -16,7 +16,7 @@ A modular C++17 antivirus scanner for Linux. It scans files by signature matchin
 
 ## Build
 
-Requires a C++17 compiler (`g++`) and Make.
+Requires a C++23 compiler (`g++` 13+) and Make.
 
 ```bash
 make

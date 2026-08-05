@@ -1,8 +1,10 @@
 #include "CLI/CommandParser.h"
 
 #include <iostream>
+#include <string_view>
 
-Command CommandParser::parse(int argc, char* argv[]) const {
+Command CommandParser::parse(int argc, char* argv[]) const
+{
     Command command;
 
     if (argc < 2) {
@@ -10,66 +12,63 @@ Command CommandParser::parse(int argc, char* argv[]) const {
         return command;
     }
 
-    const std::string action = argv[1];
+    const std::string_view action = argv[1];
 
     if (action == "scan-all") {
-        command.type = CommandType::ScanAll;
-        return command;
+        return Command{.type = CommandType::ScanAll, .argument = {}};
     }
 
     if (action == "scan") {
         if (argc < 3) {
-            command.type = CommandType::Unknown;
-            return command;
+            return Command{.type = CommandType::Unknown, .argument = {}};
         }
-        command.type = CommandType::ScanPath;
-        command.argument = argv[2];
-        return command;
+
+        return Command{
+            .type = CommandType::ScanPath,
+            .argument = argv[2]};
     }
 
     if (action == "restore") {
         if (argc < 3) {
-            command.type = CommandType::Unknown;
-            return command;
+            return Command{.type = CommandType::Unknown, .argument = {}};
         }
-        command.type = CommandType::Restore;
-        command.argument = argv[2];
-        return command;
+
+        return Command{
+            .type = CommandType::Restore,
+            .argument = argv[2]};
     }
 
     if (action == "delete") {
         if (argc < 3) {
-            command.type = CommandType::Unknown;
-            return command;
+            return Command{.type = CommandType::Unknown, .argument = {}};
         }
-        command.type = CommandType::Delete;
-        command.argument = argv[2];
-        return command;
+
+        return Command{
+            .type = CommandType::Delete,
+            .argument = argv[2]};
     }
 
     if (action == "quarantine-list" || action == "list") {
-        command.type = CommandType::ListQuarantine;
-        return command;
+        return Command{.type = CommandType::ListQuarantine, .argument = {}};
     }
 
     if (action == "help" || action == "--help" || action == "-h") {
-        command.type = CommandType::Help;
-        return command;
+        return Command{.type = CommandType::Help, .argument = {}};
     }
 
-    command.type = CommandType::Unknown;
-    return command;
+    return Command{.type = CommandType::Unknown, .argument = {}};
 }
 
-void CommandParser::printHelp() const {
+void CommandParser::printHelp() const
+{
     std::cout
         << "Antivirus Scanner\n"
         << "\n"
         << "Usage:\n"
-        << "  scanner scan-all\n"
-        << "  scanner scan <path>\n"
-        << "  scanner restore <id>\n"
-        << "  scanner delete <id>\n"
-        << "  scanner quarantine-list\n"
-        << "  scanner help\n";
+        << "  av_scanner scan-all\n"
+        << "  av_scanner scan <path>\n"
+        << "  av_scanner restore <id>\n"
+        << "  av_scanner delete <id>\n"
+        << "  av_scanner quarantine-list\n"
+        << "  av_scanner help\n";
 }

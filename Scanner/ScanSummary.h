@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <format>
 #include <string>
 
 struct ScanSummary {
@@ -41,15 +42,17 @@ struct ScanSummary {
         return *this;
     }
 
-    std::string toLogLine() const
+    [[nodiscard]] std::string toLogLine() const
     {
-        return "Scan summary: discovered=" +
-               std::to_string(discovered.load()) +
-               ", scanned=" + std::to_string(scanned.load()) +
-               ", cached=" + std::to_string(cached.load()) +
-               ", excluded=" + std::to_string(excluded.load()) +
-               ", malicious=" + std::to_string(malicious.load()) +
-               ", quarantined=" + std::to_string(quarantined.load()) +
-               ", failed=" + std::to_string(failed.load());
+        return std::format(
+            "Scan summary: discovered={}, scanned={}, cached={}, "
+            "excluded={}, malicious={}, quarantined={}, failed={}",
+            discovered.load(),
+            scanned.load(),
+            cached.load(),
+            excluded.load(),
+            malicious.load(),
+            quarantined.load(),
+            failed.load());
     }
 };

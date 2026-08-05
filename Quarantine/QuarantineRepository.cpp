@@ -43,7 +43,7 @@ QuarantineRepository::QuarantineRepository(fs::path metadata_file)
 
 bool QuarantineRepository::initialize()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     std::error_code error;
     fs::create_directories(metadata_file_.parent_path(), error);
@@ -136,7 +136,7 @@ bool QuarantineRepository::save(
 std::optional<QuarantineEntry> QuarantineRepository::findById(
     const std::string& id) const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     for (const QuarantineEntry& entry : entries_) {
         if (entry.id == id) {
@@ -149,7 +149,7 @@ std::optional<QuarantineEntry> QuarantineRepository::findById(
 
 bool QuarantineRepository::add(const QuarantineEntry& entry)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     entries_.push_back(entry);
     return save(entries_);
@@ -157,7 +157,7 @@ bool QuarantineRepository::add(const QuarantineEntry& entry)
 
 bool QuarantineRepository::remove(const std::string& id)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
 
     const auto it = std::remove_if(
         entries_.begin(),
@@ -176,6 +176,6 @@ bool QuarantineRepository::remove(const std::string& id)
 
 std::vector<QuarantineEntry> QuarantineRepository::list() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::scoped_lock lock(mutex_);
     return entries_;
 }
