@@ -4,6 +4,7 @@
 #include "Logger/Logger.h"
 #include "Quarantine/QuarantineManager.h"
 #include "Scanner/Automaton/AhoCorasick.h"
+#include "Scanner/FileScanner/FileScanner.h"
 #include "Scanner/ScanSummary.h"
 #include "Scanner/SignatureManager/SignatureManager.h"
 
@@ -25,9 +26,23 @@ public:
         ScanSummary& summary);
 
 private:
+    bool checkCache(
+        const std::filesystem::path& file_path,
+        ScanSummary& summary);
+
+    FileScanResult scanFile(const std::filesystem::path& file_path);
+
+    void handleCleanFile(
+        const std::filesystem::path& file_path,
+        ScanSummary& summary);
+
     void handleMaliciousFile(
         const std::filesystem::path& file_path,
         std::size_t matched_signature_index,
+        ScanSummary& summary);
+
+    void handleScanError(
+        const FileScanResult& result,
         ScanSummary& summary);
 
     const AhoCorasick& automaton_;

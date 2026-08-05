@@ -16,6 +16,25 @@ FileScanner::FileScanner(
 {
 }
 
+bool FileScanner::scanBuffer(
+    const char* data,
+    std::size_t size,
+    int& state,
+    std::size_t& matched_signature_index) const
+{
+    for (std::size_t i = 0; i < size; ++i) {
+        const auto byte = static_cast<unsigned char>(data[i]);
+        state = automaton_.nextState(state, byte);
+
+        if (automaton_.hasMatch(state)) {
+            matched_signature_index = automaton_.matches(state).front();
+            return true;
+        }
+    }
+
+    return false;
+}
+
 FileScanResult FileScanner::scan(const fs::path& file_path) const
 {
     FileScanResult result;
@@ -92,17 +111,13 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
             break;
         }
 
-        for (std::streamsize i = 0; i < bytes_read; ++i) {
-            const auto byte =
-                static_cast<unsigned char>(buffer[static_cast<std::size_t>(i)]);
-            state = automaton_.nextState(state, byte);
-
-            if (automaton_.hasMatch(state)) {
-                result.verdict = FileVerdict::Malicious;
-                result.matched_signature_index =
-                    automaton_.matches(state).front();
-                return result;
-            }
+        if (scanBuffer(
+                buffer.data(),
+                static_cast<std::size_t>(bytes_read),
+                state,
+                result.matched_signature_index)) {
+            result.verdict = FileVerdict::Malicious;
+            return result;
         }
     }
 

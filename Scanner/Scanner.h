@@ -61,6 +61,14 @@ private:
         const std::filesystem::path& root,
         std::filesystem::path& normalized) const;
 
+    bool loadSignatures();
+    bool buildAutomaton();
+    bool loadExclusions();
+    bool initializeResume();
+    bool initializeCache();
+    bool initializeQuarantine();
+    bool createFileProcessor();
+
     SignatureManager signature_manager_;
     AhoCorasick automaton_;
     ExcludeManager exclude_manager_;

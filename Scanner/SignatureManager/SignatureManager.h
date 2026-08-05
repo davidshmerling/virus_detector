@@ -22,6 +22,7 @@ public:
 
 private:
     static std::string trim(const std::string& text);
+    static bool isValidSignature(const std::string& line);
 
     std::string file_path_;
     std::vector<std::string> signatures_;

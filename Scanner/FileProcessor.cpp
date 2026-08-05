@@ -2,7 +2,6 @@
 
 #include "CLI/ConsolePrinter.h"
 #include "Common/Error.h"
-#include "Scanner/FileScanner/FileScanner.h"
 
 namespace fs = std::filesystem;
 
@@ -22,7 +21,7 @@ FileProcessor::FileProcessor(
 {
 }
 
-void FileProcessor::process(
+bool FileProcessor::checkCache(
     const fs::path& file_path,
     ScanSummary& summary)
 {
@@ -30,37 +29,29 @@ void FileProcessor::process(
         file_path,
         signatures_last_modified_);
 
-    if (cached_verdict.has_value()) {
-        ++summary.cached;
-        return;
+    if (!cached_verdict.has_value()) {
+        return false;
     }
 
+    ++summary.cached;
+    return true;
+}
+
+FileScanResult FileProcessor::scanFile(const fs::path& file_path)
+{
     FileScanner file_scanner(automaton_);
-    const FileScanResult result = file_scanner.scan(file_path);
+    return file_scanner.scan(file_path);
+}
 
-    switch (result.verdict) {
-        case FileVerdict::Clean:
-            ++summary.scanned;
-            cache_manager_.update(
-                file_path,
-                signatures_last_modified_,
-                FileVerdict::Clean);
-            break;
-
-        case FileVerdict::Malicious:
-            ++summary.scanned;
-            ++summary.malicious;
-            handleMaliciousFile(
-                result.file_path,
-                result.matched_signature_index,
-                summary);
-            break;
-
-        case FileVerdict::Error:
-            logger_.error(formatError(result.error));
-            ++summary.failed;
-            break;
-    }
+void FileProcessor::handleCleanFile(
+    const fs::path& file_path,
+    ScanSummary& summary)
+{
+    ++summary.scanned;
+    cache_manager_.update(
+        file_path,
+        signatures_last_modified_,
+        FileVerdict::Clean);
 }
 
 void FileProcessor::handleMaliciousFile(
@@ -68,6 +59,9 @@ void FileProcessor::handleMaliciousFile(
     std::size_t matched_signature_index,
     ScanSummary& summary)
 {
+    ++summary.scanned;
+    ++summary.malicious;
+
     const auto& signatures = signature_manager_.getSignatures();
 
     std::string matched_signature = "unknown";
@@ -100,4 +94,40 @@ void FileProcessor::handleMaliciousFile(
     ConsolePrinter::printMessage(
         "Malicious file moved to quarantine: " +
         file_path.string());
+}
+
+void FileProcessor::handleScanError(
+    const FileScanResult& result,
+    ScanSummary& summary)
+{
+    logger_.error(formatError(result.error));
+    ++summary.failed;
+}
+
+void FileProcessor::process(
+    const fs::path& file_path,
+    ScanSummary& summary)
+{
+    if (checkCache(file_path, summary)) {
+        return;
+    }
+
+    const FileScanResult result = scanFile(file_path);
+
+    switch (result.verdict) {
+        case FileVerdict::Clean:
+            handleCleanFile(file_path, summary);
+            break;
+
+        case FileVerdict::Malicious:
+            handleMaliciousFile(
+                result.file_path,
+                result.matched_signature_index,
+                summary);
+            break;
+
+        case FileVerdict::Error:
+            handleScanError(result, summary);
+            break;
+    }
 }

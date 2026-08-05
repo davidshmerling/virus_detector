@@ -121,7 +121,7 @@ std::string ProgressTracker::pathKey(const fs::path& relative_path)
     return relative_path.lexically_normal().generic_string();
 }
 
-void ProgressTracker::refreshNextPathLocked()
+void ProgressTracker::updateNextUnfinished()
 {
     if (unfinished_paths_.empty()) {
         checkpoint_.next_unfinished_path.clear();
@@ -132,7 +132,7 @@ void ProgressTracker::refreshNextPathLocked()
 
 bool ProgressTracker::saveLocked()
 {
-    refreshNextPathLocked();
+    updateNextUnfinished();
 
     if (!repository_.save(checkpoint_)) {
         logger_.error("Could not save checkpoint");

@@ -25,6 +25,13 @@ public:
     FileScanResult scan(const std::filesystem::path& file_path) const;
 
 private:
+    // Returns true when a signature match is found in the buffer.
+    bool scanBuffer(
+        const char* data,
+        std::size_t size,
+        int& state,
+        std::size_t& matched_signature_index) const;
+
     const AhoCorasick& automaton_;
     std::size_t chunk_size_;
 };

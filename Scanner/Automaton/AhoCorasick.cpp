@@ -46,11 +46,8 @@ void AhoCorasick::addPattern(
     nodes_[state].output.push_back(signatureIndex);
 }
 
-void AhoCorasick::buildFailureLinks()
+void AhoCorasick::initializeRootTransitions(std::queue<int>& pending)
 {
-    std::queue<int> pending;
-
-    // Initialize transitions from the root.
     for (int byte = 0; byte < 256; ++byte) {
         int& nextState = nodes_[0].next[byte];
 
@@ -61,7 +58,10 @@ void AhoCorasick::buildFailureLinks()
             pending.push(nextState);
         }
     }
+}
 
+void AhoCorasick::bfsFailureLinks(std::queue<int>& pending)
+{
     while (!pending.empty()) {
         const int state = pending.front();
         pending.pop();
@@ -91,6 +91,13 @@ void AhoCorasick::buildFailureLinks()
             pending.push(nextState);
         }
     }
+}
+
+void AhoCorasick::buildFailureLinks()
+{
+    std::queue<int> pending;
+    initializeRootTransitions(pending);
+    bfsFailureLinks(pending);
 }
 
 bool AhoCorasick::isBuilt() const

@@ -30,7 +30,7 @@ public:
 private:
     static std::string pathKey(const std::filesystem::path& relative_path);
 
-    void refreshNextPathLocked();
+    void updateNextUnfinished();
     bool saveLocked();
 
     std::set<std::string> unfinished_paths_;

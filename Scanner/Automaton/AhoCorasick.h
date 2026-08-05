@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <queue>
 #include <string>
 #include <vector>
 
@@ -47,6 +48,8 @@ private:
     void clear();
     void addPattern(const std::string& pattern, std::size_t signature_index);
     void buildFailureLinks();
+    void initializeRootTransitions(std::queue<int>& pending);
+    void bfsFailureLinks(std::queue<int>& pending);
 
     std::vector<AutomatonNode> nodes_;
     std::size_t signature_count_ = 0;

@@ -85,15 +85,53 @@ bool Scanner::initialize()
 {
     logger_.info("Initializing scanner");
 
-    const OperationResult signatures_result = signature_manager_.load();
-    if (!signatures_result.success) {
-        logger_.error(formatError(signatures_result.error));
+    if (!loadSignatures()) {
+        return false;
+    }
+
+    if (!buildAutomaton()) {
+        return false;
+    }
+
+    if (!loadExclusions()) {
+        return false;
+    }
+
+    if (!initializeResume()) {
+        return false;
+    }
+
+    if (!initializeCache()) {
+        return false;
+    }
+
+    if (!initializeQuarantine()) {
+        return false;
+    }
+
+    if (!createFileProcessor()) {
+        return false;
+    }
+
+    initialized_ = true;
+    return true;
+}
+
+bool Scanner::loadSignatures()
+{
+    const OperationResult result = signature_manager_.load();
+    if (!result.success) {
+        logger_.error(formatError(result.error));
         ConsolePrinter::printError("Could not initialize scanner");
         return false;
     }
 
     signatures_last_modified_ = signature_manager_.lastModified();
+    return true;
+}
 
+bool Scanner::buildAutomaton()
+{
     automaton_.build(signature_manager_.getSignatures());
 
     if (!automaton_.isBuilt() || signature_manager_.count() == 0) {
@@ -108,9 +146,14 @@ bool Scanner::initialize()
         ", nodes: " +
         std::to_string(automaton_.nodeCount()));
 
-    const OperationResult exclude_result = exclude_manager_.load();
-    if (!exclude_result.success) {
-        logger_.error(formatError(exclude_result.error));
+    return true;
+}
+
+bool Scanner::loadExclusions()
+{
+    const OperationResult result = exclude_manager_.load();
+    if (!result.success) {
+        logger_.error(formatError(result.error));
         ConsolePrinter::printError("Could not load exclude file");
         return false;
     }
@@ -119,6 +162,11 @@ bool Scanner::initialize()
         "Exclude list loaded. Paths: " +
         std::to_string(exclude_manager_.getExcludedPaths().size()));
 
+    return true;
+}
+
+bool Scanner::initializeResume()
+{
     if (!checkpoint_repository_.initialize()) {
         logger_.error(
             formatError({
@@ -128,11 +176,21 @@ bool Scanner::initialize()
         return false;
     }
 
+    return true;
+}
+
+bool Scanner::initializeCache()
+{
     if (!cache_manager_.initialize()) {
         logger_.warning(
             "Cache could not be loaded. Starting with empty cache");
     }
 
+    return true;
+}
+
+bool Scanner::initializeQuarantine()
+{
     if (!quarantine_manager_.initialize()) {
         logger_.error(
             formatError({
@@ -142,6 +200,11 @@ bool Scanner::initialize()
         return false;
     }
 
+    return true;
+}
+
+bool Scanner::createFileProcessor()
+{
     file_processor_ = std::make_unique<FileProcessor>(
         automaton_,
         signature_manager_,
@@ -150,8 +213,7 @@ bool Scanner::initialize()
         logger_,
         signatures_last_modified_);
 
-    initialized_ = true;
-    return true;
+    return file_processor_ != nullptr;
 }
 
 bool Scanner::prepareProgress(

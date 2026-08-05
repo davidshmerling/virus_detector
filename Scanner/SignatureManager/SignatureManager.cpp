@@ -22,6 +22,11 @@ std::string SignatureManager::trim(const std::string& text)
     return text.substr(start, end - start + 1);
 }
 
+bool SignatureManager::isValidSignature(const std::string& line)
+{
+    return !line.empty() && line[0] != '#';
+}
+
 OperationResult SignatureManager::load()
 {
     signatures_.clear();
@@ -40,7 +45,7 @@ OperationResult SignatureManager::load()
     while (std::getline(file, line)) {
         line = trim(line);
 
-        if (line.empty() || line[0] == '#') {
+        if (!isValidSignature(line)) {
             continue;
         }
 
