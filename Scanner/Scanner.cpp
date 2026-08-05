@@ -313,6 +313,7 @@ ScanSummary Scanner::scanRoot(const fs::path& root)
 
     progress_tracker_.markEnumerationFinished();
     thread_pool_.wait();
+    progress_tracker_.flush();
 
     if (!cache_manager_.flush()) {
         logger_.error("Could not flush cache");

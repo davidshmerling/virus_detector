@@ -4,6 +4,7 @@
 #include "Resume/JsonCheckpointRepository.h"
 #include "Resume/ScanCheckpoint.h"
 
+#include <cstddef>
 #include <filesystem>
 #include <mutex>
 #include <set>
@@ -13,7 +14,8 @@ class ProgressTracker {
 public:
     ProgressTracker(
         JsonCheckpointRepository& repository,
-        Logger& logger);
+        Logger& logger,
+        std::size_t flush_interval = 10);
 
     bool startNewScan(const std::filesystem::path& root);
     bool resumeScan(const ScanCheckpoint& checkpoint);
@@ -23,12 +25,16 @@ public:
     bool markCompleted(const std::filesystem::path& relative_path);
     bool markEnumerationFinished();
 
+    // Flush any pending checkpoint updates to disk.
+    bool flush();
+
     const ScanCheckpoint& checkpoint() const;
 
 private:
     static std::string pathKey(const std::filesystem::path& relative_path);
 
-    bool saveLocked();
+    void refreshNextPathLocked();
+    bool saveLocked(bool force);
 
     std::set<std::string> unfinished_paths_;
     std::mutex mutex_;
@@ -36,6 +42,9 @@ private:
     ScanCheckpoint checkpoint_;
     JsonCheckpointRepository& repository_;
     Logger& logger_;
+
+    std::size_t flush_interval_;
+    std::size_t dirty_count_ = 0;
 
     bool enumeration_finished_ = false;
 };
