@@ -1,5 +1,6 @@
 #include "Cache/CacheManager.h"
 
+#include <chrono>
 #include <system_error>
 #include <utility>
 
@@ -55,47 +56,60 @@ std::optional<FileVerdict> CacheManager::getValidVerdict(
     const fs::path& file_path,
     std::int64_t signatures_last_modified) const
 {
-    ScopedPerformanceTimer timer(
-        profiler_,
-        PerformanceSection::CacheValidation);
-
     const std::string key = pathKey(file_path);
 
     CacheEntry entry;
     bool found = false;
+    std::chrono::nanoseconds work_time{0};
 
     {
+        const auto lock_wait_start = std::chrono::steady_clock::now();
         std::shared_lock lock(mutex_);
+        const auto lock_acquired = std::chrono::steady_clock::now();
+
+        profiler_.addMeasurement(
+            PerformanceSection::CacheLookupLockWait,
+            lock_acquired - lock_wait_start);
 
         const auto iterator = entries_.find(key);
-        if (iterator == entries_.end()) {
-            return std::nullopt;
+        if (iterator != entries_.end()) {
+            entry = iterator->second;
+            found = true;
         }
 
-        entry = iterator->second;
-        found = true;
+        work_time += std::chrono::steady_clock::now() - lock_acquired;
     }
 
     if (!found) {
+        profiler_.addMeasurement(
+            PerformanceSection::CacheLookupWork,
+            work_time);
         return std::nullopt;
     }
 
-    // Filesystem metadata outside the cache lock.
+    const auto identity_start = std::chrono::steady_clock::now();
+
     std::int64_t current_file_time = 0;
     std::uintmax_t current_file_size = 0;
     if (!getFileIdentity(file_path, current_file_time, current_file_size)) {
+        work_time += std::chrono::steady_clock::now() - identity_start;
+        profiler_.addMeasurement(
+            PerformanceSection::CacheLookupWork,
+            work_time);
         return std::nullopt;
     }
 
-    if (entry.file_last_modified != current_file_time) {
-        return std::nullopt;
-    }
+    const bool valid =
+        entry.file_last_modified == current_file_time &&
+        entry.file_size == current_file_size &&
+        entry.signatures_last_modified == signatures_last_modified;
 
-    if (entry.file_size != current_file_size) {
-        return std::nullopt;
-    }
+    work_time += std::chrono::steady_clock::now() - identity_start;
+    profiler_.addMeasurement(
+        PerformanceSection::CacheLookupWork,
+        work_time);
 
-    if (entry.signatures_last_modified != signatures_last_modified) {
+    if (!valid) {
         return std::nullopt;
     }
 
@@ -111,13 +125,18 @@ bool CacheManager::update(
         return true;
     }
 
-    // Filesystem work outside the cache lock.
+    std::chrono::nanoseconds work_time{0};
+    const auto prep_start = std::chrono::steady_clock::now();
+
     std::int64_t file_last_modified = 0;
     std::uintmax_t file_size = 0;
     if (!getFileIdentity(file_path, file_last_modified, file_size)) {
         logger_.warning(
             "Could not read file identity: " +
             file_path.string());
+        profiler_.addMeasurement(
+            PerformanceSection::CacheUpdateWork,
+            std::chrono::steady_clock::now() - prep_start);
         return false;
     }
 
@@ -129,21 +148,31 @@ bool CacheManager::update(
     entry.signatures_last_modified = signatures_last_modified;
     entry.verdict = verdict;
 
+    work_time += std::chrono::steady_clock::now() - prep_start;
+
     bool should_flush = false;
 
     {
-        ScopedPerformanceTimer timer(
-            profiler_,
-            PerformanceSection::CacheUpdate);
-
+        const auto lock_wait_start = std::chrono::steady_clock::now();
         std::unique_lock lock(mutex_);
+        const auto lock_acquired = std::chrono::steady_clock::now();
+
+        profiler_.addMeasurement(
+            PerformanceSection::CacheUpdateLockWait,
+            lock_acquired - lock_wait_start);
 
         entries_[key] = entry;
         dirty_paths_.insert(key);
         removed_paths_.erase(key);
 
         should_flush = pendingChangesLocked() >= flush_interval_;
+
+        work_time += std::chrono::steady_clock::now() - lock_acquired;
     }
+
+    profiler_.addMeasurement(
+        PerformanceSection::CacheUpdateWork,
+        work_time);
 
     if (should_flush) {
         return flush();
@@ -212,7 +241,7 @@ bool CacheManager::flush()
 
     ScopedPerformanceTimer timer(
         profiler_,
-        PerformanceSection::CacheJsonSave);
+        PerformanceSection::CachePersistence);
 
     if (!repository_->save(snapshot, dirty_entries, removed_snapshot)) {
         std::unique_lock lock(mutex_);

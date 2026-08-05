@@ -37,9 +37,11 @@ void PerformanceProfiler::logReport() const
         PerformanceSection::ProgressRegister,
         PerformanceSection::QueueWait,
         PerformanceSection::FileProcessing,
-        PerformanceSection::CacheValidation,
-        PerformanceSection::CacheUpdate,
-        PerformanceSection::CacheJsonSave,
+        PerformanceSection::CacheLookupLockWait,
+        PerformanceSection::CacheLookupWork,
+        PerformanceSection::CacheUpdateLockWait,
+        PerformanceSection::CacheUpdateWork,
+        PerformanceSection::CachePersistence,
         PerformanceSection::FileOpen,
         PerformanceSection::FileRead,
         PerformanceSection::AutomatonSearch,
@@ -118,14 +120,20 @@ std::string PerformanceProfiler::sectionName(
         case PerformanceSection::QueueWait:
             return "Queue wait";
 
-        case PerformanceSection::CacheValidation:
-            return "Cache lookup";
+        case PerformanceSection::CacheLookupLockWait:
+            return "Cache lookup lock wait";
 
-        case PerformanceSection::CacheUpdate:
-            return "Cache update";
+        case PerformanceSection::CacheLookupWork:
+            return "Cache lookup work";
 
-        case PerformanceSection::CacheJsonSave:
-            return "Cache save";
+        case PerformanceSection::CacheUpdateLockWait:
+            return "Cache update lock wait";
+
+        case PerformanceSection::CacheUpdateWork:
+            return "Cache update work";
+
+        case PerformanceSection::CachePersistence:
+            return "Cache persistence";
 
         case PerformanceSection::FileOpen:
             return "File open";
