@@ -19,18 +19,9 @@ A modular C++23 antivirus scanner for Linux. It scans files by signature matchin
 Requires a C++23 compiler (`g++` 13+) and Make.
 
 ```bash
-make
-```
-
-Binary:
-
-```text
-build/bin/av_scanner
-```
-
-Clean:
-
-```bash
+make          # portable: -O2 -g → build/bin/av_scanner
+make bench    # local benchmark: -O3 -DNDEBUG -march=native -flto
+              # → build-bench/bin/av_scanner (not for other CPUs)
 make clean
 ```
 

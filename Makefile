@@ -1,8 +1,22 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++23 -O2 -g -I. -Iexternal
-LDFLAGS = -pthread -lsqlite3
 
+CXXFLAGS_COMMON = -Wall -Wextra -std=c++23 -I. -Iexternal
+LDFLAGS_COMMON = -pthread -lsqlite3
+
+# Default: portable debug-friendly build.
+MODE ?= release
+
+ifeq ($(MODE),bench)
+# Local benchmark only: -march=native is not portable across CPUs.
+CXXFLAGS = $(CXXFLAGS_COMMON) -O3 -DNDEBUG -march=native -flto
+LDFLAGS = $(LDFLAGS_COMMON) -flto
+BUILD_DIR = build-bench
+else
+CXXFLAGS = $(CXXFLAGS_COMMON) -O2 -g
+LDFLAGS = $(LDFLAGS_COMMON)
 BUILD_DIR = build
+endif
+
 OBJ_DIR   = $(BUILD_DIR)/obj
 DEP_DIR   = $(BUILD_DIR)/dep
 BIN_DIR   = $(BUILD_DIR)/bin
@@ -37,6 +51,9 @@ OBJS = $(addprefix $(OBJ_DIR)/,$(addsuffix .o,$(OBJECTS)))
 DEPS = $(addprefix $(DEP_DIR)/,$(addsuffix .d,$(OBJECTS)))
 
 all: $(TARGET)
+
+bench:
+	$(MAKE) MODE=bench all
 
 $(OBJ_DIR) $(DEP_DIR) $(BIN_DIR):
 	mkdir -p $@
@@ -73,6 +90,6 @@ $(eval $(call COMPILE,AhoCorasick,Scanner/Automaton/AhoCorasick.cpp))
 -include $(DEPS)
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf build build-bench
 
-.PHONY: all clean
+.PHONY: all bench clean
