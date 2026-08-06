@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <format>
 #include <system_error>
 #include <thread>
 
@@ -13,8 +14,69 @@ FileEnumerator::FileEnumerator(
     PerformanceProfiler& profiler)
     : exclude_manager_(exclude_manager),
       logger_(logger),
-      directory_reader_(logger, profiler)
+      profiler_(profiler)
 {
+}
+
+bool FileEnumerator::readSortedChildren(
+    const fs::path& directory,
+    std::vector<fs::directory_entry>& children) const
+{
+    children.clear();
+
+    {
+        ScopedPerformanceTimer timer(
+            profiler_,
+            PerformanceSection::DirectoryRead);
+
+        std::error_code error;
+        fs::directory_iterator iterator(
+            directory,
+            fs::directory_options::skip_permission_denied,
+            error);
+
+        if (error) {
+            logger_.warning(
+                std::format(
+                    "Open directory failed for {}: {}",
+                    directory.string(),
+                    error.message()));
+            return false;
+        }
+
+        const fs::directory_iterator end;
+
+        while (iterator != end) {
+            const fs::path entry_path = iterator->path();
+            children.push_back(*iterator);
+
+            iterator.increment(error);
+            if (error) {
+                logger_.warning(
+                    std::format(
+                        "Read directory entry failed for {}: {}",
+                        entry_path.string(),
+                        error.message()));
+                error.clear();
+            }
+        }
+    }
+
+    {
+        ScopedPerformanceTimer timer(
+            profiler_,
+            PerformanceSection::DirectorySort);
+
+        std::ranges::sort(
+            children,
+            [](const fs::directory_entry& left,
+               const fs::directory_entry& right) {
+                return left.path().filename().generic_string()
+                     < right.path().filename().generic_string();
+            });
+    }
+
+    return true;
 }
 
 void FileEnumerator::logEntryAccessError(
@@ -134,9 +196,9 @@ bool FileEnumerator::enumerateSorted(
         return false;
     }
 
-    // 1) Read and sort direct children of root (lexicographic via reader).
+    // 1) Read and sort direct children of root (lexicographic).
     std::vector<fs::directory_entry> root_children;
-    if (!directory_reader_.read(root, root_children)) {
+    if (!readSortedChildren(root, root_children)) {
         return true;
     }
 
@@ -239,7 +301,7 @@ bool FileEnumerator::walkAll(
     }
 
     std::vector<fs::directory_entry> children;
-    if (!directory_reader_.read(directory, children)) {
+    if (!readSortedChildren(directory, children)) {
         return true;
     }
 
@@ -271,7 +333,7 @@ bool FileEnumerator::walkResume(
     const std::string& target_name = resume_parts[depth];
 
     std::vector<fs::directory_entry> children;
-    if (!directory_reader_.read(directory, children)) {
+    if (!readSortedChildren(directory, children)) {
         return true;
     }
 

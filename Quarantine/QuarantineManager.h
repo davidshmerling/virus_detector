@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Logger/Logger.h"
-#include "Quarantine/FileMover.h"
 #include "Quarantine/QuarantineEntry.h"
 #include "Quarantine/QuarantineRepository.h"
 
@@ -40,11 +39,14 @@ private:
     UniqueDestination createUniqueDestination(
         const std::filesystem::path& original_path) const;
 
+    static bool moveFile(
+        const std::filesystem::path& source,
+        const std::filesystem::path& destination);
+
     std::filesystem::path quarantine_directory_;
     std::filesystem::path files_directory_;
 
     Logger& logger_;
     QuarantineRepository repository_;
-    FileMover file_mover_;
     mutable std::mutex mutex_;
 };

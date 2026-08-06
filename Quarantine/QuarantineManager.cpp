@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <random>
 #include <sstream>
+#include <system_error>
 
 namespace fs = std::filesystem;
 
@@ -16,6 +17,32 @@ QuarantineManager::QuarantineManager(
       logger_(logger),
       repository_(quarantine_directory_ / "metadata.json")
 {
+}
+
+bool QuarantineManager::moveFile(
+    const fs::path& source,
+    const fs::path& destination)
+{
+    std::error_code error;
+    fs::rename(source, destination, error);
+
+    if (!error) {
+        return true;
+    }
+
+    // Never overwrite an existing destination.
+    fs::copy_file(
+        source,
+        destination,
+        fs::copy_options::none,
+        error);
+
+    if (error) {
+        return false;
+    }
+
+    fs::remove(source, error);
+    return !error;
 }
 
 bool QuarantineManager::initialize()
@@ -58,7 +85,7 @@ bool QuarantineManager::quarantine(
     const UniqueDestination destination =
         createUniqueDestination(file_path);
 
-    if (!file_mover_.move(file_path, destination.path)) {
+    if (!moveFile(file_path, destination.path)) {
         logger_.error(
             "Quarantine failed: could not move file to quarantine");
         return false;
@@ -73,7 +100,7 @@ bool QuarantineManager::quarantine(
     entry.quarantined_at = currentTime();
 
     if (!repository_.add(entry)) {
-        file_mover_.move(destination.path, file_path);
+        moveFile(destination.path, file_path);
         logger_.error(
             "Quarantine failed: could not save metadata, file restored");
         return false;
@@ -118,7 +145,7 @@ bool QuarantineManager::restore(const std::string& id)
         return false;
     }
 
-    if (!file_mover_.move(entry->quarantine_path, entry->original_path)) {
+    if (!moveFile(entry->quarantine_path, entry->original_path)) {
         logger_.error("Restore failed: could not move file back");
         return false;
     }

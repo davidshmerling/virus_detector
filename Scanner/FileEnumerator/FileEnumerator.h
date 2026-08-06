@@ -3,7 +3,6 @@
 #include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
 #include "Performance/PerformanceProfiler.h"
-#include "Scanner/FileEnumerator/SortedDirectoryReader.h"
 #include "Scanner/ScanSummary.h"
 
 #include <cstddef>
@@ -39,6 +38,10 @@ private:
     // How many threads claim root-level subtrees via atomic index.
     static constexpr std::size_t kEnumerationWorkers = 4;
 
+    bool readSortedChildren(
+        const fs::path& directory,
+        std::vector<fs::directory_entry>& children) const;
+
     bool walkAll(
         const fs::path& directory,
         ScanSummary& summary,
@@ -71,5 +74,5 @@ private:
 
     const ExcludeManager& exclude_manager_;
     Logger& logger_;
-    SortedDirectoryReader directory_reader_;
+    PerformanceProfiler& profiler_;
 };

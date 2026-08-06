@@ -4,6 +4,10 @@
 #include <system_error>
 #include <utility>
 
+#if !defined(_WIN32)
+#include <sys/stat.h>
+#endif
+
 namespace fs = std::filesystem;
 
 CacheManager::CacheManager(
@@ -499,17 +503,15 @@ std::size_t CacheManager::size() const
 
 std::string CacheManager::pathKey(const fs::path& path)
 {
+    // Avoid weakly_canonical() — it hits the filesystem on every lookup.
+    // Enumerator skips symlinks; absolute + lexical normalize is enough.
     std::error_code error;
-
-    fs::path normalized = fs::weakly_canonical(path, error);
+    fs::path normalized = fs::absolute(path, error);
     if (error) {
-        normalized = fs::absolute(path, error);
-        if (error) {
-            normalized = path.lexically_normal();
-        }
+        return path.lexically_normal().generic_string();
     }
 
-    return normalized.generic_string();
+    return normalized.lexically_normal().generic_string();
 }
 
 bool CacheManager::getFileIdentity(
@@ -517,6 +519,19 @@ bool CacheManager::getFileIdentity(
     std::int64_t& last_modified,
     std::uintmax_t& file_size)
 {
+#if !defined(_WIN32)
+    // One syscall instead of separate last_write_time + file_size.
+    struct stat status {};
+    if (::stat(path.c_str(), &status) != 0) {
+        return false;
+    }
+
+    last_modified =
+        static_cast<std::int64_t>(status.st_mtim.tv_sec) * 1'000'000'000LL +
+        static_cast<std::int64_t>(status.st_mtim.tv_nsec);
+    file_size = static_cast<std::uintmax_t>(status.st_size);
+    return true;
+#else
     std::error_code error;
 
     const fs::file_time_type file_time =
@@ -536,4 +551,5 @@ bool CacheManager::getFileIdentity(
     file_size = size;
 
     return true;
+#endif
 }

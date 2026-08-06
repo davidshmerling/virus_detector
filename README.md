@@ -61,11 +61,11 @@ Example:
 ├── Common/              Shared types (Error, OperationResult, FileVerdict)
 ├── Exclude/             Exclusion list + built-in system paths
 ├── Logger/              Thread-safe file logger
-├── Quarantine/          Quarantine manager, FileMover, metadata repository
+├── Quarantine/          Quarantine manager + metadata repository
 ├── Resume/              Checkpoint + ProgressTracker
 ├── Scanner/
 │   ├── FileProcessor    Single-file cache/scan/quarantine
-│   ├── FileEnumerator/  Sorted DFS + SortedDirectoryReader
+│   ├── FileEnumerator/  Sorted DFS enumeration
 │   ├── FileScanner/     Chunked signature scan
 │   ├── Automaton/       Aho-Corasick
 │   └── SignatureManager/

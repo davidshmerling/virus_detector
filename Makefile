@@ -22,17 +22,14 @@ OBJECTS = \
 	FileProcessor \
 	QuarantineManager \
 	QuarantineRepository \
-	FileMover \
 	ExcludeManager \
 	CacheManager \
-	JsonCacheRepository \
 	SqliteCacheRepository \
 	JsonCheckpointRepository \
 	ProgressTracker \
 	ThreadPool \
 	SignatureManager \
 	FileEnumerator \
-	SortedDirectoryReader \
 	FileScanner \
 	AhoCorasick
 
@@ -62,17 +59,14 @@ $(eval $(call COMPILE,ScannerCore,Scanner/Scanner.cpp))
 $(eval $(call COMPILE,FileProcessor,Scanner/FileProcessor.cpp))
 $(eval $(call COMPILE,QuarantineManager,Quarantine/QuarantineManager.cpp))
 $(eval $(call COMPILE,QuarantineRepository,Quarantine/QuarantineRepository.cpp))
-$(eval $(call COMPILE,FileMover,Quarantine/FileMover.cpp))
 $(eval $(call COMPILE,ExcludeManager,Exclude/ExcludeManager.cpp))
 $(eval $(call COMPILE,CacheManager,Cache/CacheManager.cpp))
-$(eval $(call COMPILE,JsonCacheRepository,Cache/JsonCacheRepository.cpp))
 $(eval $(call COMPILE,SqliteCacheRepository,Cache/SqliteCacheRepository.cpp))
 $(eval $(call COMPILE,JsonCheckpointRepository,Resume/JsonCheckpointRepository.cpp))
 $(eval $(call COMPILE,ProgressTracker,Resume/ProgressTracker.cpp))
 $(eval $(call COMPILE,ThreadPool,ThreadPool/ThreadPool.cpp))
 $(eval $(call COMPILE,SignatureManager,Scanner/SignatureManager/SignatureManager.cpp))
 $(eval $(call COMPILE,FileEnumerator,Scanner/FileEnumerator/FileEnumerator.cpp))
-$(eval $(call COMPILE,SortedDirectoryReader,Scanner/FileEnumerator/SortedDirectoryReader.cpp))
 $(eval $(call COMPILE,FileScanner,Scanner/FileScanner/FileScanner.cpp))
 $(eval $(call COMPILE,AhoCorasick,Scanner/Automaton/AhoCorasick.cpp))
 

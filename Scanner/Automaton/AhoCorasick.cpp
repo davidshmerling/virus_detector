@@ -125,7 +125,12 @@ void AhoCorasick::scanChunk(
         const auto byte = static_cast<unsigned char>(byte_value);
         state = nodes_[state].next[byte];
 
-        for (const std::size_t index : nodes_[state].output) {
+        const auto& output = nodes_[state].output;
+        if (output.empty()) {
+            continue;
+        }
+
+        for (const std::size_t index : output) {
             matched_indices.insert(index);
         }
     }

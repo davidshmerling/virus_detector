@@ -17,45 +17,6 @@ void ConsolePrinter::printScanStarted(const std::string& path)
     std::cout << "Scanning: " << path << '\n';
 }
 
-void ConsolePrinter::printScanResult(
-    const FileScanResult& result,
-    const SignatureManager& signature_manager)
-{
-    switch (result.verdict) {
-        case FileVerdict::Clean:
-            std::cout << "Clean: " << result.file_path << '\n';
-            break;
-
-        case FileVerdict::Malicious: {
-            std::cout << "Malicious: " << result.file_path << '\n';
-
-            const auto& signatures =
-                signature_manager.getSignatures();
-
-            for (const std::size_t index :
-                 result.matched_signature_indices) {
-                if (index < signatures.size()) {
-                    std::cout << "Matched signature: "
-                              << signatures[index] << '\n';
-                }
-            }
-
-            break;
-        }
-
-        case FileVerdict::Error:
-            std::cerr << "Could not scan: "
-                      << result.file_path;
-
-            if (result.error.hasError()) {
-                std::cerr << " - " << result.error.message;
-            }
-
-            std::cerr << '\n';
-            break;
-    }
-}
-
 void ConsolePrinter::printQuarantineList(
     const std::vector<QuarantineEntry>& entries)
 {
