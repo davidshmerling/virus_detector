@@ -1,10 +1,12 @@
 #include "Scanner/FileScanner/FileScanner.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <fstream>
+#include <span>
 #include <system_error>
-#include <vector>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -14,76 +16,17 @@ FileScanner::FileScanner(
     std::size_t chunk_size)
     : automaton_(automaton),
       profiler_(profiler),
-      chunk_size_(chunk_size == 0 ? 4 * 1024 * 1024 : chunk_size)
+      chunk_size_(chunk_size == 0 ? 256 * 1024 : chunk_size),
+      buffer_(chunk_size_)
 {
 }
 
-bool FileScanner::scanBuffer(
-    std::span<const char> data,
-    int& state,
-    std::size_t& matched_signature_index) const
-{
-    for (const char byte_value : data) {
-        const auto byte = static_cast<unsigned char>(byte_value);
-        state = automaton_.nextState(state, byte);
-
-        if (automaton_.hasMatch(state)) {
-            matched_signature_index = automaton_.matches(state).front();
-            return true;
-        }
-    }
-
-    return false;
-}
-
-FileScanResult FileScanner::scan(const fs::path& file_path) const
+FileScanResult FileScanner::scan(const fs::path& file_path)
 {
     FileScanResult result{
         .verdict = FileVerdict::Error,
-        .file_path = file_path};
-
-    std::error_code error;
-
-    if (!fs::exists(file_path, error)) {
-        if (error) {
-            result.error = {
-                .code = ErrorCode::PermissionDenied,
-                .message = "Could not inspect path: " + file_path.string() +
-                           " - " + error.message()};
-        } else {
-            result.error = {
-                .code = ErrorCode::PathNotFound,
-                .message = "Path does not exist: " + file_path.string()};
-        }
-
-        return result;
-    }
-
-    if (error) {
-        result.error = {
-            .code = ErrorCode::PermissionDenied,
-            .message = "Could not inspect path: " + file_path.string() +
-                       " - " + error.message()};
-        return result;
-    }
-
-    error.clear();
-
-    if (!fs::is_regular_file(file_path, error) || error) {
-        if (error) {
-            result.error = {
-                .code = ErrorCode::PermissionDenied,
-                .message = "Could not inspect path: " + file_path.string() +
-                           " - " + error.message()};
-        } else {
-            result.error = {
-                .code = ErrorCode::NotRegularFile,
-                .message =
-                    "Path is not a regular file: " + file_path.string()};
-        }
-
-        return result;
-    }
+        .file_path = file_path,
+        .matched_signature_indices = {}};
 
     std::ifstream file;
 
@@ -104,23 +47,21 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
         return result;
     }
 
-    std::vector<char> buffer(chunk_size_);
-
     // Important: state lives across chunks, so a signature
     // that crosses a chunk boundary is still detected.
     int state = 0;
+    std::unordered_set<std::size_t> matched_indices;
 
     // Accumulate per file to avoid locking the profiler on every chunk.
     std::chrono::nanoseconds read_time{0};
     std::chrono::nanoseconds search_time{0};
-    bool found_malicious = false;
 
     while (true) {
         const auto read_start = std::chrono::steady_clock::now();
 
         file.read(
-            buffer.data(),
-            static_cast<std::streamsize>(buffer.size()));
+            buffer_.data(),
+            static_cast<std::streamsize>(buffer_.size()));
         const auto bytes_read = file.gcount();
 
         read_time += std::chrono::steady_clock::now() - read_start;
@@ -131,18 +72,14 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
 
         const auto search_start = std::chrono::steady_clock::now();
 
-        found_malicious = scanBuffer(
+        automaton_.scanChunk(
             std::span<const char>{
-                buffer.data(),
+                buffer_.data(),
                 static_cast<std::size_t>(bytes_read)},
             state,
-            result.matched_signature_index);
+            matched_indices);
 
         search_time += std::chrono::steady_clock::now() - search_start;
-
-        if (found_malicious) {
-            break;
-        }
     }
 
     profiler_.addMeasurement(PerformanceSection::FileRead, read_time);
@@ -150,16 +87,20 @@ FileScanResult FileScanner::scan(const fs::path& file_path) const
         PerformanceSection::AutomatonSearch,
         search_time);
 
-    if (found_malicious) {
-        result.verdict = FileVerdict::Malicious;
-        return result;
-    }
-
     if (file.bad()) {
         result.error = {
             .code = ErrorCode::FileReadFailed,
             .message =
                 "Read error while scanning file: " + file_path.string()};
+        return result;
+    }
+
+    if (!matched_indices.empty()) {
+        result.matched_signature_indices.assign(
+            matched_indices.begin(),
+            matched_indices.end());
+        std::ranges::sort(result.matched_signature_indices);
+        result.verdict = FileVerdict::Malicious;
         return result;
     }
 

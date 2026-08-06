@@ -21,7 +21,7 @@ public:
 
     bool quarantine(
         const std::filesystem::path& file_path,
-        const std::string& signature);
+        const std::vector<std::string>& signatures);
 
     bool restore(const std::string& id);
     bool remove(const std::string& id);

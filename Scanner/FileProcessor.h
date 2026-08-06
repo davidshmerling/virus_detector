@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <vector>
 
 class FileProcessor {
 public:
@@ -42,7 +43,7 @@ private:
 
     void handleMaliciousFile(
         const std::filesystem::path& file_path,
-        std::size_t matched_signature_index,
+        const std::vector<std::size_t>& matched_signature_indices,
         ScanSummary& summary);
 
     void handleScanError(

@@ -7,12 +7,13 @@
 
 #include <cstddef>
 #include <filesystem>
-#include <span>
+#include <vector>
 
 struct FileScanResult {
     FileVerdict verdict = FileVerdict::Error;
     std::filesystem::path file_path;
-    std::size_t matched_signature_index = 0;
+    // Unique signature indexes that matched anywhere in the file.
+    std::vector<std::size_t> matched_signature_indices;
     Error error{};
 };
 
@@ -23,19 +24,15 @@ public:
     FileScanner(
         const AhoCorasick& automaton,
         PerformanceProfiler& profiler,
-        std::size_t chunk_size = 4 * 1024 * 1024);
+        std::size_t chunk_size = 256 * 1024);
 
     [[nodiscard]] FileScanResult scan(
-        const std::filesystem::path& file_path) const;
+        const std::filesystem::path& file_path);
 
 private:
-    // Returns true when a signature match is found in the buffer.
-    [[nodiscard]] bool scanBuffer(
-        std::span<const char> data,
-        int& state,
-        std::size_t& matched_signature_index) const;
-
     const AhoCorasick& automaton_;
     PerformanceProfiler& profiler_;
     std::size_t chunk_size_;
+    // Reused across scan() calls on the same worker (via thread_local scanner).
+    std::vector<char> buffer_;
 };

@@ -32,10 +32,12 @@ void ConsolePrinter::printScanResult(
             const auto& signatures =
                 signature_manager.getSignatures();
 
-            if (result.matched_signature_index < signatures.size()) {
-                std::cout << "Matched signature: "
-                          << signatures[result.matched_signature_index]
-                          << '\n';
+            for (const std::size_t index :
+                 result.matched_signature_indices) {
+                if (index < signatures.size()) {
+                    std::cout << "Matched signature: "
+                              << signatures[index] << '\n';
+                }
             }
 
             break;
@@ -67,8 +69,18 @@ void ConsolePrinter::printQuarantineList(
     for (const QuarantineEntry& entry : entries) {
         std::cout << "  ID:       " << entry.id << '\n'
                   << "  Original: " << entry.original_path << '\n'
-                  << "  Signature:" << entry.signature << '\n'
-                  << "  Size:     " << entry.file_size << '\n'
+                  << "  Signatures:";
+
+        if (entry.signatures.empty()) {
+            std::cout << " (none)\n";
+        } else {
+            std::cout << '\n';
+            for (const std::string& signature : entry.signatures) {
+                std::cout << "    - " << signature << '\n';
+            }
+        }
+
+        std::cout << "  Size:     " << entry.file_size << '\n'
                   << "  Date:     " << entry.quarantined_at << '\n'
                   << '\n';
     }

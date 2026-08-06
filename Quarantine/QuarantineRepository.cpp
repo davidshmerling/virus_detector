@@ -14,7 +14,7 @@ nlohmann::json toJson(const QuarantineEntry& entry)
         {"id", entry.id},
         {"original_path", entry.original_path.string()},
         {"quarantine_path", entry.quarantine_path.string()},
-        {"signature", entry.signature},
+        {"signatures", entry.signatures},
         {"file_size", entry.file_size},
         {"quarantined_at", entry.quarantined_at}
     };
@@ -27,7 +27,16 @@ QuarantineEntry fromJson(const nlohmann::json& json)
     entry.id = json.at("id").get<std::string>();
     entry.original_path = json.at("original_path").get<std::string>();
     entry.quarantine_path = json.at("quarantine_path").get<std::string>();
-    entry.signature = json.at("signature").get<std::string>();
+
+    if (json.contains("signatures") && json.at("signatures").is_array()) {
+        entry.signatures =
+            json.at("signatures").get<std::vector<std::string>>();
+    } else if (json.contains("signature") &&
+               json.at("signature").is_string()) {
+        // Backward compatibility with older single-signature metadata.
+        entry.signatures.push_back(json.at("signature").get<std::string>());
+    }
+
     entry.file_size = json.at("file_size").get<std::uintmax_t>();
     entry.quarantined_at = json.at("quarantined_at").get<std::string>();
 

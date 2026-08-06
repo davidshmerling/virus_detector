@@ -116,18 +116,17 @@ std::size_t AhoCorasick::signatureCount() const
     return signature_count_;
 }
 
-int AhoCorasick::nextState(int current_state, unsigned char byte) const
+void AhoCorasick::scanChunk(
+    std::span<const char> data,
+    int& state,
+    std::unordered_set<std::size_t>& matched_indices) const
 {
-    // After buildFailureLinks(), every next[byte] is filled.
-    return nodes_[current_state].next[byte];
-}
+    for (const char byte_value : data) {
+        const auto byte = static_cast<unsigned char>(byte_value);
+        state = nodes_[state].next[byte];
 
-bool AhoCorasick::hasMatch(int state) const
-{
-    return !nodes_[state].output.empty();
-}
-
-const std::vector<std::size_t>& AhoCorasick::matches(int state) const
-{
-    return nodes_[state].output;
+        for (const std::size_t index : nodes_[state].output) {
+            matched_indices.insert(index);
+        }
+    }
 }

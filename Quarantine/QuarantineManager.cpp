@@ -39,7 +39,7 @@ bool QuarantineManager::initialize()
 
 bool QuarantineManager::quarantine(
     const fs::path& file_path,
-    const std::string& signature)
+    const std::vector<std::string>& signatures)
 {
     std::scoped_lock lock(mutex_);
 
@@ -68,7 +68,7 @@ bool QuarantineManager::quarantine(
     entry.id = destination.id;
     entry.original_path = file_path;
     entry.quarantine_path = destination.path;
-    entry.signature = signature;
+    entry.signatures = signatures;
     entry.file_size = fs::file_size(destination.path, error);
     entry.quarantined_at = currentTime();
 
