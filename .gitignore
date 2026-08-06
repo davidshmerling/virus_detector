@@ -1,5 +1,6 @@
 # Build output
 build/
+build-bench/
 
 # Local scan test data
 test_scan/
