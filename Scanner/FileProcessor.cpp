@@ -23,6 +23,11 @@ FileProcessor::FileProcessor(
 {
 }
 
+void FileProcessor::completeDurable(const fs::path& relative_path)
+{
+    cache_manager_.notifyDurableComplete(relative_path);
+}
+
 bool FileProcessor::checkCache(
     const fs::path& file_path,
     ScanSummary& summary)
@@ -47,13 +52,19 @@ FileScanResult FileProcessor::scanFile(const fs::path& file_path)
 
 void FileProcessor::handleCleanFile(
     const fs::path& file_path,
+    const fs::path& relative_path,
     ScanSummary& summary)
 {
     ++summary.scanned;
-    cache_manager_.update(
-        file_path,
-        signatures_last_modified_,
-        FileVerdict::Clean);
+
+    if (!cache_manager_.update(
+            file_path,
+            relative_path,
+            signatures_last_modified_,
+            FileVerdict::Clean)) {
+        // No cache write queued — still advance progress so resume cannot stall.
+        completeDurable(relative_path);
+    }
 }
 
 void FileProcessor::handleMaliciousFile(
@@ -121,6 +132,7 @@ void FileProcessor::handleScanError(
 
 void FileProcessor::process(
     const fs::path& file_path,
+    const fs::path& relative_path,
     ScanSummary& summary)
 {
     ScopedPerformanceTimer timer(
@@ -128,6 +140,8 @@ void FileProcessor::process(
         PerformanceSection::FileProcessing);
 
     if (checkCache(file_path, summary)) {
+        // Already durable in SQLite from a previous commit.
+        completeDurable(relative_path);
         return;
     }
 
@@ -135,7 +149,7 @@ void FileProcessor::process(
 
     switch (result.verdict) {
         case FileVerdict::Clean:
-            handleCleanFile(file_path, summary);
+            handleCleanFile(file_path, relative_path, summary);
             break;
 
         case FileVerdict::Malicious:
@@ -143,10 +157,12 @@ void FileProcessor::process(
                 result.file_path,
                 result.matched_signature_index,
                 summary);
+            completeDurable(relative_path);
             break;
 
         case FileVerdict::Error:
             handleScanError(result, summary);
+            completeDurable(relative_path);
             break;
     }
 }

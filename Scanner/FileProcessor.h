@@ -25,6 +25,7 @@ public:
 
     void process(
         const std::filesystem::path& file_path,
+        const std::filesystem::path& relative_path,
         ScanSummary& summary);
 
 private:
@@ -36,6 +37,7 @@ private:
 
     void handleCleanFile(
         const std::filesystem::path& file_path,
+        const std::filesystem::path& relative_path,
         ScanSummary& summary);
 
     void handleMaliciousFile(
@@ -46,6 +48,8 @@ private:
     void handleScanError(
         const FileScanResult& result,
         ScanSummary& summary);
+
+    void completeDurable(const std::filesystem::path& relative_path);
 
     const AhoCorasick& automaton_;
     const SignatureManager& signature_manager_;

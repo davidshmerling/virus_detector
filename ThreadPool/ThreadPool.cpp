@@ -86,6 +86,11 @@ void ThreadPool::wait()
     });
 }
 
+std::size_t ThreadPool::workerCount() const
+{
+    return workers_.size();
+}
+
 void ThreadPool::workerLoop()
 {
     while (true) {

@@ -6,6 +6,7 @@
 #include "Scanner/FileEnumerator/SortedDirectoryReader.h"
 #include "Scanner/ScanSummary.h"
 
+#include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -35,6 +36,9 @@ public:
         const FileCallback& on_file) const;
 
 private:
+    // How many threads claim root-level subtrees via atomic index.
+    static constexpr std::size_t kEnumerationWorkers = 4;
+
     bool walkAll(
         const fs::path& directory,
         ScanSummary& summary,

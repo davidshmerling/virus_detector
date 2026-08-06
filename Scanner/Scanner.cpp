@@ -37,6 +37,11 @@ Scanner::Scanner(
       profiler_(profiler),
       project_root_(std::move(project_root))
 {
+    // Checkpoint advances only after CacheWriter makes results durable.
+    cache_manager_.setOnDurableComplete(
+        [this](const fs::path& relative_path) {
+            return progress_tracker_.markCompleted(relative_path);
+        });
 }
 
 void Scanner::applyInternalExclusions(const fs::path& scan_root)
@@ -323,7 +328,10 @@ bool Scanner::submitFile(
         enqueued = thread_pool_.enqueue(
             [this, file_path, relative_path, &summary]() {
                 try {
-                    file_processor_->process(file_path, summary);
+                    file_processor_->process(
+                        file_path,
+                        relative_path,
+                        summary);
                 } catch (const std::exception& exception) {
                     logger_.error(
                         "Unhandled error while scanning " +
@@ -331,14 +339,14 @@ bool Scanner::submitFile(
                         ": " +
                         exception.what());
                     ++summary.failed;
+                    cache_manager_.notifyDurableComplete(relative_path);
                 } catch (...) {
                     logger_.error(
                         "Unknown error while scanning: " +
                         file_path.string());
                     ++summary.failed;
+                    cache_manager_.notifyDurableComplete(relative_path);
                 }
-
-                progress_tracker_.markCompleted(relative_path);
             });
     }
 
@@ -382,11 +390,13 @@ void Scanner::finishScan(
 {
     progress_tracker_.markEnumerationFinished();
     thread_pool_.wait();
-    progress_tracker_.flush();
 
+    // Persist cache first: successful COMMIT drives markCompleted.
     if (!cache_manager_.flush()) {
         logger_.error("Could not flush cache");
     }
+
+    progress_tracker_.flush();
 
     if (!enumeration_ok) {
         logger_.warning("Scan stopped before completion");

@@ -1,6 +1,9 @@
 #include "Scanner/FileEnumerator/FileEnumerator.h"
 
+#include <algorithm>
+#include <atomic>
 #include <system_error>
+#include <thread>
 
 namespace fs = std::filesystem;
 
@@ -131,7 +134,67 @@ bool FileEnumerator::enumerateSorted(
         return false;
     }
 
-    return walkAll(root, summary, on_file);
+    // 1) Read and sort direct children of root (lexicographic via reader).
+    std::vector<fs::directory_entry> root_children;
+    if (!directory_reader_.read(root, root_children)) {
+        return true;
+    }
+
+    if (root_children.empty()) {
+        return true;
+    }
+
+    // 2) Workers claim the next child index atomically and DFS that subtree.
+    const std::size_t worker_count = std::min(
+        kEnumerationWorkers,
+        root_children.size());
+
+    logger_.info(
+        "Parallel enumeration: " +
+        std::to_string(worker_count) +
+        " workers over " +
+        std::to_string(root_children.size()) +
+        " root children");
+
+    std::atomic<std::size_t> next_child{0};
+    std::atomic<bool> failed{false};
+
+    std::vector<std::thread> workers;
+    workers.reserve(worker_count);
+
+    for (std::size_t i = 0; i < worker_count; ++i) {
+        workers.emplace_back(
+            [this,
+             &root_children,
+             &next_child,
+             &failed,
+             &summary,
+             &on_file]() {
+                while (!failed.load(std::memory_order_relaxed)) {
+                    const std::size_t index = next_child.fetch_add(
+                        1,
+                        std::memory_order_relaxed);
+
+                    if (index >= root_children.size()) {
+                        return;
+                    }
+
+                    if (!processWholeEntry(
+                            root_children[index],
+                            summary,
+                            on_file)) {
+                        failed.store(true, std::memory_order_relaxed);
+                        return;
+                    }
+                }
+            });
+    }
+
+    for (std::thread& worker : workers) {
+        worker.join();
+    }
+
+    return !failed.load(std::memory_order_relaxed);
 }
 
 bool FileEnumerator::resumeFromSorted(
@@ -156,6 +219,7 @@ bool FileEnumerator::resumeFromSorted(
         return false;
     }
 
+    // Resume stays single-threaded: lexicographic skip logic is ordered.
     std::vector<std::string> resume_parts;
     for (const fs::path& part : first_unfinished_path) {
         resume_parts.push_back(part.generic_string());
