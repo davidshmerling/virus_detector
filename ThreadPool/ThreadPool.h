@@ -23,8 +23,6 @@ public:
 
     void wait();
 
-    std::size_t workerCount() const;
-
 private:
     void workerLoop();
 

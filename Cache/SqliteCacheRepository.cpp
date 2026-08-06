@@ -43,10 +43,6 @@ ON CONFLICT(path) DO UPDATE SET
     verdict = excluded.verdict;
 )";
 
-constexpr const char* kDeleteSql = R"(
-DELETE FROM cache_entries WHERE path = ?;
-)";
-
 }  // namespace
 
 SqliteCacheRepository::SqliteCacheRepository(fs::path database_path)
@@ -218,17 +214,6 @@ bool SqliteCacheRepository::prepareUpsertStatement(
                nullptr) == SQLITE_OK;
 }
 
-bool SqliteCacheRepository::prepareDeleteStatement(
-    sqlite3_stmt*& statement) const
-{
-    return sqlite3_prepare_v2(
-               database_,
-               kDeleteSql,
-               -1,
-               &statement,
-               nullptr) == SQLITE_OK;
-}
-
 bool SqliteCacheRepository::upsertEntry(
     sqlite3_stmt* statement,
     const std::string& path,
@@ -277,29 +262,7 @@ bool SqliteCacheRepository::upsertEntry(
     return sqlite3_step(statement) == SQLITE_DONE;
 }
 
-bool SqliteCacheRepository::deleteEntry(
-    sqlite3_stmt* statement,
-    const std::string& path) const
-{
-    sqlite3_reset(statement);
-    sqlite3_clear_bindings(statement);
-
-    if (sqlite3_bind_text(
-            statement,
-            1,
-            path.c_str(),
-            -1,
-            SQLITE_TRANSIENT) != SQLITE_OK) {
-        return false;
-    }
-
-    return sqlite3_step(statement) == SQLITE_DONE;
-}
-
-bool SqliteCacheRepository::save(
-    const CacheMap& /*snapshot*/,
-    const CacheMap& dirty_entries,
-    const std::unordered_set<std::string>& removed_paths) const
+bool SqliteCacheRepository::save(const CacheMap& dirty_entries) const
 {
     std::scoped_lock lock(mutex_);
 
@@ -307,7 +270,7 @@ bool SqliteCacheRepository::save(
         return false;
     }
 
-    if (dirty_entries.empty() && removed_paths.empty()) {
+    if (dirty_entries.empty()) {
         return true;
     }
 
@@ -317,17 +280,8 @@ bool SqliteCacheRepository::save(
     }
 
     sqlite3_stmt* upsert_statement = nullptr;
-    sqlite3_stmt* delete_statement = nullptr;
 
-    if (!dirty_entries.empty() && !prepareUpsertStatement(upsert_statement)) {
-        exec("ROLLBACK;");
-        return false;
-    }
-
-    if (!removed_paths.empty() && !prepareDeleteStatement(delete_statement)) {
-        if (upsert_statement != nullptr) {
-            sqlite3_finalize(upsert_statement);
-        }
+    if (!prepareUpsertStatement(upsert_statement)) {
         exec("ROLLBACK;");
         return false;
     }
@@ -341,22 +295,7 @@ bool SqliteCacheRepository::save(
         }
     }
 
-    if (ok) {
-        for (const std::string& path : removed_paths) {
-            if (!deleteEntry(delete_statement, path)) {
-                ok = false;
-                break;
-            }
-        }
-    }
-
-    if (upsert_statement != nullptr) {
-        sqlite3_finalize(upsert_statement);
-    }
-
-    if (delete_statement != nullptr) {
-        sqlite3_finalize(delete_statement);
-    }
+    sqlite3_finalize(upsert_statement);
 
     if (!ok) {
         exec("ROLLBACK;");

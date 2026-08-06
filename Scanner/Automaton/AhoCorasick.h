@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <queue>
 #include <span>
 #include <string>
@@ -25,6 +26,17 @@ struct AutomatonNode {
     }
 };
 
+// Per-chunk search-phase costs (TSC cycles). Failure-link following is not
+// measured here: after build(), every next[b] is already filled.
+struct AutomatonScanBreakdown {
+    std::uint64_t transition_cycles = 0;
+    std::uint64_t output_check_cycles = 0;
+    std::uint64_t match_handle_cycles = 0;
+    std::uint64_t bytes_scanned = 0;
+    std::uint64_t output_hits = 0;
+    std::uint64_t match_inserts = 0;
+};
+
 // Builds a Trie + failure links from all signature strings.
 // After build(), the automaton is read-only and safe to share between threads
 // as long as search functions are const.
@@ -36,10 +48,12 @@ public:
     // Scan a full chunk. Updates state across calls so signatures that
     // cross chunk boundaries are still found. Appends every matching
     // signature index into matched_indices (unique via the set).
+    // When breakdown != nullptr, fills TSC cycle costs per phase.
     void scanChunk(
         std::span<const char> data,
         int& state,
-        std::unordered_set<std::size_t>& matched_indices) const;
+        std::unordered_set<std::size_t>& matched_indices,
+        AutomatonScanBreakdown* breakdown = nullptr) const;
 
     bool isBuilt() const;
     std::size_t nodeCount() const;

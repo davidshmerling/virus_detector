@@ -94,10 +94,3 @@ bool JsonCheckpointRepository::save(const ScanCheckpoint& checkpoint) const
 
     return true;
 }
-
-bool JsonCheckpointRepository::remove() const
-{
-    std::error_code error;
-    fs::remove(checkpoint_file_, error);
-    return !error;
-}

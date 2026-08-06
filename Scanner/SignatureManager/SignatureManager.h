@@ -17,7 +17,6 @@ public:
 
     const std::vector<std::string>& getSignatures() const;
     std::size_t count() const;
-    std::size_t maxSignatureLength() const;
     std::int64_t lastModified() const;
 
 private:
@@ -26,6 +25,5 @@ private:
 
     std::string file_path_;
     std::vector<std::string> signatures_;
-    std::size_t max_signature_length_ = 0;
     std::int64_t last_modified_ = 0;
 };

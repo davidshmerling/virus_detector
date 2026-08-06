@@ -18,7 +18,6 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 struct CacheUpsert {
@@ -65,8 +64,6 @@ public:
     // ProgressTracker via the writer thread, without a cache write.
     bool notifyDurableComplete(const std::filesystem::path& progress_path);
 
-    bool remove(const std::filesystem::path& file_path);
-
     // Wait until pending batches are applied and dirty entries are persisted.
     bool flush();
 
@@ -84,7 +81,6 @@ private:
     void flushPendingBatches();
     void writerLoop();
     void applyBatchToMap(const std::vector<CacheUpsert>& batch);
-    void applyRemovesToMap(const std::vector<std::string>& paths);
     void notifyCompleted(const std::vector<std::filesystem::path>& paths);
 
     std::unique_ptr<CacheRepository> repository_;
@@ -104,7 +100,6 @@ private:
     std::condition_variable queue_cv_;
     std::condition_variable drain_cv_;
     std::deque<std::vector<CacheUpsert>> upsert_queue_;
-    std::deque<std::vector<std::string>> remove_queue_;
     std::deque<std::filesystem::path> complete_queue_;
 
     bool writer_stop_ = false;

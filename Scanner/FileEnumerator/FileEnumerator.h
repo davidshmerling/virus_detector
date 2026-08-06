@@ -35,9 +35,6 @@ public:
         const FileCallback& on_file) const;
 
 private:
-    // How many threads claim root-level subtrees via atomic index.
-    static constexpr std::size_t kEnumerationWorkers = 4;
-
     bool readSortedChildren(
         const fs::path& directory,
         std::vector<fs::directory_entry>& children) const;

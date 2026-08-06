@@ -3,6 +3,32 @@
 #include <queue>
 #include <ranges>
 
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#include <x86intrin.h>
+#define AV_HAS_TSC 1
+#elif defined(__aarch64__)
+#define AV_HAS_TSC 1
+#else
+#define AV_HAS_TSC 0
+#endif
+
+namespace {
+
+[[nodiscard]] inline std::uint64_t readTsc() noexcept
+{
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+    return __rdtsc();
+#elif defined(__aarch64__)
+    std::uint64_t value = 0;
+    asm volatile("mrs %0, cntvct_el0" : "=r"(value));
+    return value;
+#else
+    return 0;
+#endif
+}
+
+}  // namespace
+
 void AhoCorasick::clear()
 {
     nodes_.clear();
@@ -119,8 +145,47 @@ std::size_t AhoCorasick::signatureCount() const
 void AhoCorasick::scanChunk(
     std::span<const char> data,
     int& state,
-    std::unordered_set<std::size_t>& matched_indices) const
+    std::unordered_set<std::size_t>& matched_indices,
+    AutomatonScanBreakdown* breakdown) const
 {
+#if AV_HAS_TSC
+    if (breakdown != nullptr) {
+        for (const char byte_value : data) {
+            const auto byte = static_cast<unsigned char>(byte_value);
+
+            const std::uint64_t t0 = readTsc();
+            state = nodes_[state].next[byte];
+            const std::uint64_t t1 = readTsc();
+            breakdown->transition_cycles += t1 - t0;
+
+            const std::uint64_t t2 = readTsc();
+            const auto& output = nodes_[state].output;
+            const bool has_output = !output.empty();
+            const std::uint64_t t3 = readTsc();
+            breakdown->output_check_cycles += t3 - t2;
+
+            ++breakdown->bytes_scanned;
+
+            if (!has_output) {
+                continue;
+            }
+
+            ++breakdown->output_hits;
+
+            const std::uint64_t t4 = readTsc();
+            for (const std::size_t index : output) {
+                matched_indices.insert(index);
+                ++breakdown->match_inserts;
+            }
+            const std::uint64_t t5 = readTsc();
+            breakdown->match_handle_cycles += t5 - t4;
+        }
+        return;
+    }
+#else
+    (void)breakdown;
+#endif
+
     for (const char byte_value : data) {
         const auto byte = static_cast<unsigned char>(byte_value);
         state = nodes_[state].next[byte];

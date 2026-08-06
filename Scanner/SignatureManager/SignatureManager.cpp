@@ -32,7 +32,6 @@ bool SignatureManager::isValidSignature(const std::string& line)
 OperationResult SignatureManager::load()
 {
     signatures_.clear();
-    max_signature_length_ = 0;
 
     std::ifstream file(file_path_);
     if (!file.is_open()) {
@@ -57,10 +56,6 @@ OperationResult SignatureManager::load()
 
         seen.insert(line);
         signatures_.push_back(line);
-
-        if (line.size() > max_signature_length_) {
-            max_signature_length_ = line.size();
-        }
     }
 
     if (signatures_.empty()) {
@@ -91,11 +86,6 @@ const std::vector<std::string>& SignatureManager::getSignatures() const
 std::size_t SignatureManager::count() const
 {
     return signatures_.size();
-}
-
-std::size_t SignatureManager::maxSignatureLength() const
-{
-    return max_signature_length_;
 }
 
 std::int64_t SignatureManager::lastModified() const

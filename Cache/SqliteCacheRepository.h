@@ -20,22 +20,15 @@ public:
 
     bool initialize() override;
     bool load(CacheMap& entries) const override;
-    bool save(
-        const CacheMap& snapshot,
-        const CacheMap& dirty_entries,
-        const std::unordered_set<std::string>& removed_paths) const override;
+    bool save(const CacheMap& dirty_entries) const override;
 
 private:
     bool exec(const char* sql) const;
     bool prepareUpsertStatement(sqlite3_stmt*& statement) const;
-    bool prepareDeleteStatement(sqlite3_stmt*& statement) const;
     bool upsertEntry(
         sqlite3_stmt* statement,
         const std::string& path,
         const CacheEntry& entry) const;
-    bool deleteEntry(
-        sqlite3_stmt* statement,
-        const std::string& path) const;
 
     static int verdictToInt(FileVerdict verdict);
     static FileVerdict verdictFromInt(int value);

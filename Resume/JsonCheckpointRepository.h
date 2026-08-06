@@ -13,7 +13,6 @@ public:
 
     bool load(ScanCheckpoint& checkpoint) const;
     bool save(const ScanCheckpoint& checkpoint) const;
-    bool remove() const;
 
 private:
     std::filesystem::path checkpoint_file_;

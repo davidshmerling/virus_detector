@@ -28,8 +28,8 @@ public:
         Logger& logger,
         PerformanceProfiler& profiler,
         std::filesystem::path project_root,
-        std::size_t worker_count = 0,
-        std::size_t queue_capacity = 256);
+        std::size_t worker_count = 16,
+        std::size_t queue_capacity = 1024);
 
     bool initialize();
     ScanSummary scanRoot(const std::filesystem::path& root);

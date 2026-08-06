@@ -37,7 +37,7 @@ int Application::run(int argc, char* argv[])
         *logger_,
         *profiler_,
         project_root,
-        32);
+        16);
 
     CommandParser command_parser;
     const Command command = command_parser.parse(argc, argv);

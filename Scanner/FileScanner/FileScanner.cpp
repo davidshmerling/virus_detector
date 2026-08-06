@@ -53,39 +53,70 @@ FileScanResult FileScanner::scan(const fs::path& file_path)
     std::unordered_set<std::size_t> matched_indices;
 
     // Accumulate per file to avoid locking the profiler on every chunk.
-    std::chrono::nanoseconds read_time{0};
-    std::chrono::nanoseconds search_time{0};
+    std::chrono::nanoseconds read_wall{0};
+    std::chrono::nanoseconds read_cpu{0};
+    std::chrono::nanoseconds search_wall{0};
+    std::chrono::nanoseconds search_cpu{0};
+    AutomatonScanBreakdown search_breakdown;
 
     while (true) {
-        const auto read_start = std::chrono::steady_clock::now();
+        const auto read_wall_start =
+            std::chrono::steady_clock::now();
+        const auto read_cpu_start = threadCpuTime();
 
         file.read(
             buffer_.data(),
             static_cast<std::streamsize>(buffer_.size()));
         const auto bytes_read = file.gcount();
 
-        read_time += std::chrono::steady_clock::now() - read_start;
+        read_wall +=
+            std::chrono::steady_clock::now() - read_wall_start;
+        read_cpu += threadCpuTime() - read_cpu_start;
 
         if (bytes_read <= 0) {
             break;
         }
 
-        const auto search_start = std::chrono::steady_clock::now();
+        const auto search_wall_start =
+            std::chrono::steady_clock::now();
+        const auto search_cpu_start = threadCpuTime();
 
         automaton_.scanChunk(
             std::span<const char>{
                 buffer_.data(),
                 static_cast<std::size_t>(bytes_read)},
             state,
-            matched_indices);
+            matched_indices,
+            &search_breakdown);
 
-        search_time += std::chrono::steady_clock::now() - search_start;
+        search_wall +=
+            std::chrono::steady_clock::now() - search_wall_start;
+        search_cpu += threadCpuTime() - search_cpu_start;
     }
 
-    profiler_.addMeasurement(PerformanceSection::FileRead, read_time);
+    profiler_.addMeasurement(
+        PerformanceSection::FileRead,
+        read_wall,
+        read_cpu);
     profiler_.addMeasurement(
         PerformanceSection::AutomatonSearch,
-        search_time);
+        search_wall,
+        search_cpu);
+
+    profiler_.addCycleMeasurement(
+        PerformanceSection::AutomatonTransition,
+        search_breakdown.transition_cycles,
+        search_breakdown.bytes_scanned);
+    profiler_.addCycleMeasurement(
+        PerformanceSection::AutomatonOutputCheck,
+        search_breakdown.output_check_cycles,
+        search_breakdown.bytes_scanned);
+    profiler_.addCycleMeasurement(
+        PerformanceSection::AutomatonMatchHandle,
+        search_breakdown.match_handle_cycles,
+        search_breakdown.match_inserts == 0
+            ? search_breakdown.output_hits
+            : search_breakdown.match_inserts);
 
     if (file.bad()) {
         result.error = {

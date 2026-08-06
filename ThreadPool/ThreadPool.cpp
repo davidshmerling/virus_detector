@@ -4,8 +4,8 @@
 
 namespace {
 
-constexpr std::size_t kDefaultWorkers = 4;
-constexpr std::size_t kDefaultQueueCapacity = 256;
+constexpr std::size_t kDefaultWorkers = 16;
+constexpr std::size_t kDefaultQueueCapacity = 1024;
 
 }  // namespace
 
@@ -14,11 +14,7 @@ ThreadPool::ThreadPool(
     std::size_t queue_capacity)
 {
     if (worker_count == 0) {
-        worker_count = std::thread::hardware_concurrency();
-
-        if (worker_count == 0) {
-            worker_count = kDefaultWorkers;
-        }
+        worker_count = kDefaultWorkers;
     }
 
     if (queue_capacity == 0) {
@@ -84,11 +80,6 @@ void ThreadPool::wait()
     idle_cv_.wait(lock, [this]() {
         return tasks_.empty() && active_tasks_ == 0;
     });
-}
-
-std::size_t ThreadPool::workerCount() const
-{
-    return workers_.size();
 }
 
 void ThreadPool::workerLoop()

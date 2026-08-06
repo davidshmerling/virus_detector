@@ -285,19 +285,6 @@ bool CacheManager::notifyDurableComplete(const fs::path& progress_path)
     return true;
 }
 
-bool CacheManager::remove(const std::filesystem::path& file_path)
-{
-    const std::string key = pathKey(file_path);
-
-    {
-        std::scoped_lock lock(queue_mutex_);
-        remove_queue_.push_back({key});
-    }
-
-    queue_cv_.notify_one();
-    return true;
-}
-
 void CacheManager::applyBatchToMap(const std::vector<CacheUpsert>& batch)
 {
     std::unique_lock lock(map_mutex_);
@@ -307,28 +294,13 @@ void CacheManager::applyBatchToMap(const std::vector<CacheUpsert>& batch)
     }
 }
 
-void CacheManager::applyRemovesToMap(const std::vector<std::string>& paths)
-{
-    if (paths.empty()) {
-        return;
-    }
-
-    std::unique_lock lock(map_mutex_);
-
-    for (const std::string& path : paths) {
-        entries_.erase(path);
-    }
-}
-
 void CacheManager::writerLoop()
 {
     CacheMap dirty_entries;
     std::unordered_map<std::string, fs::path> dirty_progress;
-    std::unordered_set<std::string> removed_paths;
 
     while (true) {
         std::vector<std::vector<CacheUpsert>> upsert_batches;
-        std::vector<std::vector<std::string>> remove_batches;
         std::vector<fs::path> complete_now;
         bool stop = false;
         bool flush_now = false;
@@ -340,7 +312,6 @@ void CacheManager::writerLoop()
                 return writer_stop_ ||
                        flush_requested_ ||
                        !upsert_queue_.empty() ||
-                       !remove_queue_.empty() ||
                        !complete_queue_.empty();
             });
 
@@ -350,11 +321,6 @@ void CacheManager::writerLoop()
             while (!upsert_queue_.empty()) {
                 upsert_batches.push_back(std::move(upsert_queue_.front()));
                 upsert_queue_.pop_front();
-            }
-
-            while (!remove_queue_.empty()) {
-                remove_batches.push_back(std::move(remove_queue_.front()));
-                remove_queue_.pop_front();
             }
 
             while (!complete_queue_.empty()) {
@@ -371,17 +337,6 @@ void CacheManager::writerLoop()
             for (const CacheUpsert& upsert : batch) {
                 dirty_entries[upsert.path] = upsert.entry;
                 dirty_progress[upsert.path] = upsert.progress_path;
-                removed_paths.erase(upsert.path);
-            }
-        }
-
-        for (const auto& batch : remove_batches) {
-            applyRemovesToMap(batch);
-
-            for (const std::string& path : batch) {
-                dirty_entries.erase(path);
-                dirty_progress.erase(path);
-                removed_paths.insert(path);
             }
         }
 
@@ -391,30 +346,25 @@ void CacheManager::writerLoop()
         }
 
         const bool should_persist =
-            dirty_entries.size() + removed_paths.size() >= flush_interval_ ||
+            dirty_entries.size() >= flush_interval_ ||
             flush_now ||
             stop;
 
-        if (should_persist &&
-            (!dirty_entries.empty() || !removed_paths.empty())) {
+        if (should_persist && !dirty_entries.empty()) {
             ScopedPerformanceTimer timer(
                 profiler_,
                 PerformanceSection::CachePersistence);
 
-            CacheMap snapshot;
             const std::size_t dirty_count = dirty_entries.size();
-            const std::size_t removed_count = removed_paths.size();
 
-            if (!repository_->save(snapshot, dirty_entries, removed_paths)) {
+            if (!repository_->save(dirty_entries)) {
                 logger_.error("Could not save cache");
             } else {
                 logger_.info(
                     "Cache saved. Entries: " +
                     std::to_string(size()) +
                     ", dirty: " +
-                    std::to_string(dirty_count) +
-                    ", removed: " +
-                    std::to_string(removed_count));
+                    std::to_string(dirty_count));
 
                 std::vector<fs::path> completed;
                 completed.reserve(dirty_progress.size());
@@ -428,7 +378,6 @@ void CacheManager::writerLoop()
 
                 dirty_entries.clear();
                 dirty_progress.clear();
-                removed_paths.clear();
 
                 // Checkpoint advances only after a successful COMMIT.
                 notifyCompleted(completed);
@@ -441,7 +390,6 @@ void CacheManager::writerLoop()
 
             if (flush_now &&
                 upsert_queue_.empty() &&
-                remove_queue_.empty() &&
                 complete_queue_.empty()) {
                 flush_requested_ = false;
             }
@@ -451,11 +399,9 @@ void CacheManager::writerLoop()
 
         if (stop &&
             upsert_batches.empty() &&
-            remove_batches.empty() &&
             complete_now.empty()) {
-            if (!dirty_entries.empty() || !removed_paths.empty()) {
-                CacheMap snapshot;
-                if (repository_->save(snapshot, dirty_entries, removed_paths)) {
+            if (!dirty_entries.empty()) {
+                if (repository_->save(dirty_entries)) {
                     std::vector<fs::path> completed;
                     for (const auto& [cache_key, progress_path] :
                          dirty_progress) {
@@ -488,7 +434,6 @@ bool CacheManager::flush()
         return !flush_requested_ &&
                !writer_busy_ &&
                upsert_queue_.empty() &&
-               remove_queue_.empty() &&
                complete_queue_.empty();
     });
 
