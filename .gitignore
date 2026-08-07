@@ -3,10 +3,13 @@ build/
 new/build/
 old/build/
 
-# Local scan test data
-test_scan/
-old/test_scan/
-new/test_scan/
+# Local scan test data (keep empty folder; ignore sample files)
+test_scan/*
+!test_scan/.gitkeep
+old/test_scan/*
+!old/test_scan/.gitkeep
+new/test_scan/*
+!new/test_scan/.gitkeep
 
 # Runtime data (logs, cache, resume checkpoint, quarantine)
 **/runtime/logs/*

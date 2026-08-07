@@ -1,0 +1,11 @@
+# User exclusions (absolute paths only for now).
+# Lines starting with # are comments.
+#
+# Example:
+# /home/david/Downloads/temp
+# /home/david/movie.iso
+#
+# Built-in (not listed here):
+#   - System: /proc, /sys, /dev, /run, /tmp
+#   - Always under project root: runtime/, build/, .git/, config/signatures.txt
+#   - Full project root: only during scan-all

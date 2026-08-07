@@ -18,7 +18,10 @@ OBJECTS = \
 	ResumeManager \
 	SqliteCache \
 	CacheWriter \
-	CacheManager
+	CacheManager \
+	CommandParser \
+	ConsolePrinter \
+	ExcludeManager
 
 OBJS = $(addprefix $(OBJ_DIR)/,$(addsuffix .o,$(OBJECTS)))
 DEPS = $(addprefix $(DEP_DIR)/,$(addsuffix .d,$(OBJECTS)))
@@ -45,6 +48,9 @@ $(eval $(call COMPILE,ResumeManager,Resume/ResumeManager.cpp))
 $(eval $(call COMPILE,SqliteCache,Cache/SqliteCache.cpp))
 $(eval $(call COMPILE,CacheWriter,Cache/CacheWriter.cpp))
 $(eval $(call COMPILE,CacheManager,Cache/CacheManager.cpp))
+$(eval $(call COMPILE,CommandParser,CLI/CommandParser.cpp))
+$(eval $(call COMPILE,ConsolePrinter,Console/ConsolePrinter.cpp))
+$(eval $(call COMPILE,ExcludeManager,Exclude/ExcludeManager.cpp))
 
 -include $(DEPS)
 

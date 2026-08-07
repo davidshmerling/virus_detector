@@ -1,0 +1,41 @@
+#pragma once
+
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <unordered_set>
+#include <vector>
+
+// Exclude set for DFS:
+// - contains()            — O(1) exact match at every DFS node
+// - isScanRootExcluded()  — one-time ancestry check for the scan root only
+class ExcludeManager {
+public:
+    explicit ExcludeManager(
+        std::filesystem::path file_path = "config/exclude.txt");
+
+    bool load();
+
+    void clearInternalExcludedPaths();
+    void addInternalExcludedPath(const std::filesystem::path& path);
+
+    // Exact lookup. Use during DFS — excluded dirs are never entered.
+    bool contains(const std::filesystem::path& path) const;
+
+    // Prefix/ancestry check. Call once on the scan root before DFS starts.
+    // Not for per-node use during the walk.
+    bool isScanRootExcluded(const std::filesystem::path& root) const;
+
+private:
+    static std::filesystem::path normalize(const std::filesystem::path& path);
+    static std::string trim(const std::string& text);
+    static bool isUnderPrefix(
+        std::string_view path,
+        std::string_view prefix);
+
+    void addExact(const std::filesystem::path& path, bool internal);
+
+    std::filesystem::path file_path_;
+    std::unordered_set<std::string> exact_;
+    std::unordered_set<std::string> internal_;
+};

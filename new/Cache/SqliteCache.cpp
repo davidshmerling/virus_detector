@@ -115,10 +115,11 @@ std::vector<CacheEntry> SqliteCache::loadAll()
 
         CacheEntry entry;
         entry.path = reinterpret_cast<const char*>(path_text);
-        entry.file_last_modified = sqlite3_column_int64(statement, 1);
-        entry.file_size =
+        entry.metadata.last_modified = sqlite3_column_int64(statement, 1);
+        entry.metadata.size =
             static_cast<std::uintmax_t>(sqlite3_column_int64(statement, 2));
-        entry.signatures_last_modified = sqlite3_column_int64(statement, 3);
+        entry.metadata.signatures_last_modified =
+            sqlite3_column_int64(statement, 3);
         entry.verdict = static_cast<FileVerdict>(sqlite3_column_int(statement, 4));
         entries.push_back(std::move(entry));
     }
@@ -151,11 +152,13 @@ bool SqliteCache::upsertBatch(const std::vector<CacheEntry>& entries)
 
         if (sqlite3_bind_text(statement, 1, entry.path.c_str(), -1, SQLITE_TRANSIENT) !=
                 SQLITE_OK ||
-            sqlite3_bind_int64(statement, 2, entry.file_last_modified) != SQLITE_OK ||
-            sqlite3_bind_int64(
-                statement, 3, static_cast<sqlite3_int64>(entry.file_size)) !=
+            sqlite3_bind_int64(statement, 2, entry.metadata.last_modified) !=
                 SQLITE_OK ||
-            sqlite3_bind_int64(statement, 4, entry.signatures_last_modified) !=
+            sqlite3_bind_int64(
+                statement, 3, static_cast<sqlite3_int64>(entry.metadata.size)) !=
+                SQLITE_OK ||
+            sqlite3_bind_int64(
+                statement, 4, entry.metadata.signatures_last_modified) !=
                 SQLITE_OK ||
             sqlite3_bind_int(statement, 5, static_cast<int>(entry.verdict)) !=
                 SQLITE_OK ||

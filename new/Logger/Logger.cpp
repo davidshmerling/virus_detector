@@ -8,6 +8,21 @@
 
 namespace fs = std::filesystem;
 
+namespace {
+
+constexpr std::time_t kIsraelOffsetSeconds = 3 * 60 * 60;
+
+// Fixed Israel wall clock (UTC+3), independent of container TZ.
+std::tm israelLocalTime(std::time_t utc)
+{
+    const std::time_t israel = utc + kIsraelOffsetSeconds;
+    std::tm local_time{};
+    gmtime_r(&israel, &local_time);
+    return local_time;
+}
+
+}  // namespace
+
 Logger::Logger(const std::string& logs_directory)
 {
     std::error_code error;
@@ -79,14 +94,7 @@ std::string Logger::currentTimeText()
 {
     const auto now = std::chrono::system_clock::now();
     const std::time_t time = std::chrono::system_clock::to_time_t(now);
-
-    std::tm local_time{};
-
-#ifdef _WIN32
-    localtime_s(&local_time, &time);
-#else
-    localtime_r(&time, &local_time);
-#endif
+    const std::tm local_time = israelLocalTime(time);
 
     std::ostringstream stream;
     stream << std::put_time(&local_time, "%Y-%m-%d %H:%M:%S");
@@ -101,13 +109,7 @@ std::string Logger::makeFileName()
         std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()) % 1000;
 
-    std::tm local_time{};
-
-#ifdef _WIN32
-    localtime_s(&local_time, &time);
-#else
-    localtime_r(&time, &local_time);
-#endif
+    const std::tm local_time = israelLocalTime(time);
 
     // Invert calendar fields so default A→Z name sort puts newest first.
     // Leading "0-" keeps new logs above legacy "2026-..." names.

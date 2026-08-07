@@ -45,9 +45,7 @@ bool CacheManager::containsValid(
     }
 
     const CacheEntry& entry = iterator->second;
-    return entry.file_last_modified == metadata.last_modified &&
-           entry.file_size == metadata.size &&
-           entry.signatures_last_modified == metadata.signatures_last_modified;
+    return entry.metadata == metadata;
 }
 
 void CacheManager::update(CacheEntry entry)

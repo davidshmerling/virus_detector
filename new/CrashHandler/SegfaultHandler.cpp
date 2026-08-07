@@ -1,30 +1,26 @@
 #include "CrashHandler/SegfaultHandler.h"
 
 #include <csignal>
+#include <execinfo.h>
 #include <unistd.h>
 
 namespace {
 
-// Signal handlers may only call async-signal-safe functions.
-void writeMessage(const char* message)
+void onSegmentationFault(int signal)
 {
-    if (message == nullptr) {
-        return;
-    }
+    constexpr char message[] =
+        "\nFatal error: segmentation fault\nStack trace:\n";
 
-    std::size_t length = 0;
-    while (message[length] != '\0') {
-        ++length;
-    }
-
-    const ssize_t written = ::write(STDERR_FILENO, message, length);
+    const ssize_t written =
+        ::write(STDERR_FILENO, message, sizeof(message) - 1);
     (void)written;
-}
 
-void onSegmentationFault(int /*signal*/)
-{
-    writeMessage("Fatal error: segmentation fault\n");
-    _exit(1);
+    void* frames[64];
+    const int frameCount = ::backtrace(frames, 64);
+
+    ::backtrace_symbols_fd(frames, frameCount, STDERR_FILENO);
+
+    _exit(128 + signal);
 }
 
 } // namespace

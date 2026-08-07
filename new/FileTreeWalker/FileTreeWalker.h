@@ -1,21 +1,23 @@
 #pragma once
 
+#include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
+
 #include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
 
-// Sorted DFS: exclude, resume, hand each regular file to on_file.
+// Sorted DFS: exclude (exact), resume, hand each regular file to on_file.
 class FileTreeWalker {
 public:
     using FileCallback = std::function<bool(const std::filesystem::path&)>;
-    using ExcludeCallback = std::function<bool(const std::filesystem::path&)>;
 
-    FileTreeWalker(Logger& logger, ExcludeCallback is_excluded);
+    FileTreeWalker(Logger& logger, const ExcludeManager& exclude);
 
     // Empty resume_from → full walk from root.
+    // Calls isScanRootExcluded(root) once, then DFS uses contains() only.
     bool walk(const std::filesystem::path& root,
               const std::filesystem::path& resume_from,
               const FileCallback& on_file) const;
@@ -31,5 +33,5 @@ private:
     bool shouldSkip(const std::filesystem::path& path) const;
 
     Logger& logger_;
-    ExcludeCallback is_excluded_;
+    const ExcludeManager& exclude_;
 };

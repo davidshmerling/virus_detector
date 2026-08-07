@@ -1,24 +1,34 @@
 #include "FileTreeWalker/FileTreeWalker.h"
+
 #include <algorithm>
 #include <system_error>
 
 namespace fs = std::filesystem;
 
-FileTreeWalker::FileTreeWalker(Logger& logger, ExcludeCallback is_excluded)
-    : logger_(logger), is_excluded_(std::move(is_excluded)) {}
+FileTreeWalker::FileTreeWalker(Logger& logger, const ExcludeManager& exclude)
+    : logger_(logger),
+      exclude_(exclude)
+{
+}
 
-bool FileTreeWalker::walk(const fs::path& root,
-                          const fs::path& resume_from,
-                          const FileCallback& on_file) const
+bool FileTreeWalker::walk(
+    const fs::path& root,
+    const fs::path& resume_from,
+    const FileCallback& on_file) const
 {
     std::error_code error;
     if (!fs::exists(root, error) || error) {
         logger_.warning("Access failed for " + root.string());
         return false;
     }
-    if (shouldSkip(root)) {
+
+    // One-time ancestry check for the requested root only.
+    // After this, DFS uses exact contains() — excluded dirs are never entered.
+    if (exclude_.isScanRootExcluded(root)) {
+        logger_.warning("Scan root is excluded: " + root.string());
         return true;
     }
+
     if (fs::is_regular_file(root, error)) {
         return !error && on_file(root);
     }
@@ -34,10 +44,11 @@ bool FileTreeWalker::walk(const fs::path& root,
     return walkDirectory(root, parts, 0, on_file);
 }
 
-bool FileTreeWalker::walkDirectory(const fs::path& directory,
-                                   const std::vector<std::string>& resume_parts,
-                                   std::size_t depth,
-                                   const FileCallback& on_file) const
+bool FileTreeWalker::walkDirectory(
+    const fs::path& directory,
+    const std::vector<std::string>& resume_parts,
+    std::size_t depth,
+    const FileCallback& on_file) const
 {
     if (shouldSkip(directory)) {
         return true;
@@ -123,5 +134,7 @@ bool FileTreeWalker::shouldSkip(const fs::path& path) const
         logger_.warning("Skipping symbolic link: " + path.string());
         return true;
     }
-    return static_cast<bool>(is_excluded_) && is_excluded_(path);
+
+    // Exact exclude only — parents already passed DFS exclusion.
+    return exclude_.contains(path);
 }
