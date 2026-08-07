@@ -1,20 +1,23 @@
 # Build output
 build/
-build-bench/
+new/build/
+old/build/
 
 # Local scan test data
 test_scan/
+old/test_scan/
+new/test_scan/
 
 # Runtime data (logs, cache, resume checkpoint, quarantine)
-runtime/logs/*
-!runtime/logs/.gitkeep
+**/runtime/logs/*
+!**/runtime/logs/.gitkeep
 
-runtime/cache/*
-!runtime/cache/.gitkeep
+**/runtime/cache/*
+!**/runtime/cache/.gitkeep
 
-runtime/resume/*
-!runtime/resume/.gitkeep
+**/runtime/resume/*
+!**/runtime/resume/.gitkeep
 
-runtime/quarantine/metadata.json
-runtime/quarantine/files/*
-!runtime/quarantine/files/.gitkeep
+**/runtime/quarantine/metadata.json
+**/runtime/quarantine/files/*
+!**/runtime/quarantine/files/.gitkeep
