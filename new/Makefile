@@ -16,12 +16,20 @@ OBJECTS = \
 	FileTreeWalker \
 	ThreadPool \
 	ResumeManager \
-	SqliteCache \
+	SqliteCacheManager \
 	CacheWriter \
 	CacheManager \
 	CommandParser \
 	ConsolePrinter \
-	ExcludeManager
+	ExcludeManager \
+	SignatureLoader \
+	AutomatonBuilder \
+	AutomatonScanner \
+	FileProcessor \
+	QuarantineFileOperations \
+	QuarantineRepository \
+	QuarantineManager \
+	ScanManager
 
 OBJS = $(addprefix $(OBJ_DIR)/,$(addsuffix .o,$(OBJECTS)))
 DEPS = $(addprefix $(DEP_DIR)/,$(addsuffix .d,$(OBJECTS)))
@@ -42,15 +50,23 @@ endef
 $(eval $(call COMPILE,main,main.cpp))
 $(eval $(call COMPILE,SegfaultHandler,CrashHandler/SegfaultHandler.cpp))
 $(eval $(call COMPILE,Logger,Logger/Logger.cpp))
-$(eval $(call COMPILE,FileTreeWalker,FileTreeWalker/FileTreeWalker.cpp))
+$(eval $(call COMPILE,FileTreeWalker,Scan/FileTreeWalker/FileTreeWalker.cpp))
 $(eval $(call COMPILE,ThreadPool,ThreadPool/ThreadPool.cpp))
 $(eval $(call COMPILE,ResumeManager,Resume/ResumeManager.cpp))
-$(eval $(call COMPILE,SqliteCache,Cache/SqliteCache.cpp))
+$(eval $(call COMPILE,SqliteCacheManager,Cache/SqliteCacheManager.cpp))
 $(eval $(call COMPILE,CacheWriter,Cache/CacheWriter.cpp))
 $(eval $(call COMPILE,CacheManager,Cache/CacheManager.cpp))
 $(eval $(call COMPILE,CommandParser,CLI/CommandParser.cpp))
 $(eval $(call COMPILE,ConsolePrinter,Console/ConsolePrinter.cpp))
 $(eval $(call COMPILE,ExcludeManager,Exclude/ExcludeManager.cpp))
+$(eval $(call COMPILE,SignatureLoader,Signature/SignatureLoader.cpp))
+$(eval $(call COMPILE,AutomatonBuilder,Scan/AutomatonBuilder/AutomatonBuilder.cpp))
+$(eval $(call COMPILE,AutomatonScanner,Scan/AutomatonScanner/AutomatonScanner.cpp))
+$(eval $(call COMPILE,FileProcessor,Scan/FileProcessor/FileProcessor.cpp))
+$(eval $(call COMPILE,QuarantineFileOperations,Quarantine/QuarantineFileOperations.cpp))
+$(eval $(call COMPILE,QuarantineRepository,Quarantine/QuarantineRepository.cpp))
+$(eval $(call COMPILE,QuarantineManager,Quarantine/QuarantineManager.cpp))
+$(eval $(call COMPILE,ScanManager,Scan/ScanManager/ScanManager.cpp))
 
 -include $(DEPS)
 
@@ -58,3 +74,5 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 .PHONY: all clean
+
+

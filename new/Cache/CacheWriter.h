@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Cache/CacheEntry.h"
-#include "Cache/SqliteCache.h"
+#include "Cache/SqliteCacheManager.h"
 
 #include <condition_variable>
 #include <cstddef>
@@ -16,7 +16,7 @@
 class CacheWriter {
 public:
     explicit CacheWriter(
-        SqliteCache& storage,
+        SqliteCacheManager& storage,
         std::size_t flush_threshold = 100);
     ~CacheWriter();
 
@@ -33,7 +33,7 @@ private:
         std::unordered_map<std::string, CacheEntry>& dirty,
         std::vector<std::string>& removals);
 
-    SqliteCache& storage_;
+    SqliteCacheManager& storage_;
     std::size_t flush_threshold_;
 
     std::mutex mutex_;

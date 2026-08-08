@@ -2,53 +2,58 @@
 
 #include "Logger/Logger.h"
 
-#include <cstddef>
 #include <filesystem>
 #include <mutex>
 #include <set>
 #include <string>
 
-// Tiny text checkpoint: root / status / next (one field per line).
+// Remembers which file a scan should resume from if it is interrupted.
+//
+// The checkpoint file has three lines:
+//   line 1 = scan root
+//   line 2 = running / completed
+//   line 3 = next file to resume from (smallest unfinished path)
+//
+// While a scan runs, the set of unfinished files is kept in memory and the
+// smallest one is written to disk as the safe resume point.
 class ResumeManager {
 public:
-    explicit ResumeManager(
+    ResumeManager(
         Logger& logger,
-        std::filesystem::path checkpoint_file =
-            "runtime/resume/checkpoint.txt");
+        std::filesystem::path checkpoint_file);
 
-    // Matching running checkpoint → resumed=true.
-    // Otherwise starts fresh → resumed=false. False only on I/O failure.
-    bool begin(const std::filesystem::path& root, bool& resumed);
+    // Start a new scan, or report that we are resuming a previous one.
+    bool begin(
+        const std::filesystem::path& scan_root,
+        bool& resumed);
 
-    const std::filesystem::path& root() const;
-    const std::filesystem::path& next() const;
+    // A discovered file was handed to the ThreadPool; it is now unfinished.
+    bool addFile(const std::filesystem::path& file);
 
-    bool registerTask(const std::filesystem::path& path);
-    bool markCompleted(const std::filesystem::path& path);
-    bool markEnumerationFinished();
-    bool flush();
+    // A worker finished processing this file.
+    bool fileCompleted(const std::filesystem::path& file);
+
+    // The FileTreeWalker finished discovering files.
+    bool discoveryFinished();
+
+    const std::filesystem::path& nextFile() const;
 
 private:
-    static std::string pathKey(const std::filesystem::path& path);
-    static std::filesystem::path normalizeRoot(const std::filesystem::path& root);
+    bool load(
+        std::filesystem::path& root,
+        std::string& status,
+        std::filesystem::path& next);
 
-    bool updateFrontierLocked();
-    bool saveLocked();
-    bool load(std::filesystem::path& root,
-              std::string& status,
-              std::filesystem::path& next) const;
+    bool save(const std::string& status);
 
     Logger& logger_;
+
     std::filesystem::path checkpoint_file_;
+    std::filesystem::path root_;
+    std::filesystem::path next_file_;
+
+    std::set<std::string> unfinished_files_;
+    bool discovery_finished_ = false;
 
     std::mutex mutex_;
-    std::set<std::string> unfinished_;
-
-    std::filesystem::path root_;
-    std::filesystem::path next_;
-    std::string status_ = "running";
-    bool enumeration_finished_ = false;
-
-    std::size_t dirty_ = 0;
-    std::size_t flush_interval_ = 100;
 };

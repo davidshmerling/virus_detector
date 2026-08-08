@@ -2,10 +2,12 @@
 
 #include "Cache/CacheEntry.h"
 #include "Cache/CacheWriter.h"
-#include "Cache/SqliteCache.h"
+#include "Cache/SqliteCacheManager.h"
+#include "Common/FileVerdict.h"
 #include "Logger/Logger.h"
 
 #include <filesystem>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -19,7 +21,9 @@ public:
 
     bool load();
 
-    bool containsValid(
+    // Returns the cached verdict when a valid entry exists (same file
+    // metadata and same signatures). std::nullopt means a cache miss.
+    std::optional<FileVerdict> cachedVerdict(
         const std::string& path,
         FileMetadata metadata) const;
 
@@ -31,6 +35,6 @@ private:
     Logger& logger_;
     mutable std::shared_mutex mutex_;
     std::unordered_map<std::string, CacheEntry> entries_;
-    SqliteCache storage_;
+    SqliteCacheManager storage_;
     CacheWriter writer_;
 };

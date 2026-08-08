@@ -2,7 +2,7 @@
 
 #include <utility>
 
-CacheWriter::CacheWriter(SqliteCache& storage, std::size_t flush_threshold)
+CacheWriter::CacheWriter(SqliteCacheManager& storage, std::size_t flush_threshold)
     : storage_(storage),
       flush_threshold_(flush_threshold == 0 ? 1 : flush_threshold),
       thread_([this]() { run(); })

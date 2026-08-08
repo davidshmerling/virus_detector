@@ -33,7 +33,7 @@ bool CacheManager::load()
     return true;
 }
 
-bool CacheManager::containsValid(
+std::optional<FileVerdict> CacheManager::cachedVerdict(
     const std::string& path,
     FileMetadata metadata) const
 {
@@ -41,11 +41,14 @@ bool CacheManager::containsValid(
 
     const auto iterator = entries_.find(path);
     if (iterator == entries_.end()) {
-        return false;
+        return std::nullopt;
     }
 
     const CacheEntry& entry = iterator->second;
-    return entry.metadata == metadata;
+    if (entry.metadata == metadata) {
+        return entry.verdict;
+    }
+    return std::nullopt;
 }
 
 void CacheManager::update(CacheEntry entry)

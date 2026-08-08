@@ -11,174 +11,121 @@ ResumeManager::ResumeManager(Logger& logger, fs::path checkpoint_file)
 {
 }
 
-const fs::path& ResumeManager::root() const
-{
-    return root_;
-}
-
-const fs::path& ResumeManager::next() const
-{
-    return next_;
-}
-
-bool ResumeManager::begin(const fs::path& root, bool& resumed)
+bool ResumeManager::begin(
+    const fs::path& scan_root,
+    bool& resumed)
 {
     std::scoped_lock lock(mutex_);
 
-    unfinished_.clear();
-    enumeration_finished_ = false;
-    dirty_ = 0;
+    unfinished_files_.clear();
+    discovery_finished_ = false;
     resumed = false;
 
-    root_ = normalizeRoot(root);
+    root_ = fs::absolute(scan_root);
 
     fs::path saved_root;
-    fs::path saved_next;
     std::string saved_status;
 
-    if (load(saved_root, saved_status, saved_next) &&
+    if (load(saved_root, saved_status, next_file_) &&
         saved_status == "running" &&
-        normalizeRoot(saved_root) == root_) {
-        next_ = saved_next;
-        status_ = "running";
+        saved_root == root_) {
         resumed = true;
         return true;
     }
 
-    next_.clear();
-    status_ = "running";
-    return saveLocked();
+    next_file_.clear();
+    return save("running");
 }
 
-bool ResumeManager::registerTask(const fs::path& path)
+bool ResumeManager::addFile(const fs::path& file)
 {
     std::scoped_lock lock(mutex_);
-    unfinished_.insert(pathKey(path));
-    return updateFrontierLocked();
+
+    unfinished_files_.insert(file.generic_string());
+    next_file_ = *unfinished_files_.begin();
+
+    return save("running");
 }
 
-bool ResumeManager::markCompleted(const fs::path& path)
+bool ResumeManager::fileCompleted(const fs::path& file)
 {
     std::scoped_lock lock(mutex_);
-    unfinished_.erase(pathKey(path));
 
-    if (enumeration_finished_ && unfinished_.empty()) {
-        status_ = "completed";
-        next_.clear();
-        return saveLocked();
-    }
+    unfinished_files_.erase(file.generic_string());
 
-    return updateFrontierLocked();
-}
+    if (unfinished_files_.empty()) {
+        if (discovery_finished_) {
+            next_file_.clear();
+            return save("completed");
+        }
 
-bool ResumeManager::markEnumerationFinished()
-{
-    std::scoped_lock lock(mutex_);
-    enumeration_finished_ = true;
-
-    if (unfinished_.empty()) {
-        status_ = "completed";
-        next_.clear();
-    }
-
-    return saveLocked();
-}
-
-bool ResumeManager::flush()
-{
-    std::scoped_lock lock(mutex_);
-    return saveLocked();
-}
-
-bool ResumeManager::updateFrontierLocked()
-{
-    if (unfinished_.empty()) {
         return true;
     }
 
-    const fs::path new_next = *unfinished_.begin();
-    if (new_next == next_) {
-        return true;
-    }
-
-    next_ = new_next;
-    if (++dirty_ < flush_interval_) {
-        return true;
-    }
-
-    return saveLocked();
+    next_file_ = *unfinished_files_.begin();
+    return save("running");
 }
 
-std::string ResumeManager::pathKey(const fs::path& path)
+bool ResumeManager::discoveryFinished()
 {
-    return path.lexically_normal().generic_string();
+    std::scoped_lock lock(mutex_);
+
+    discovery_finished_ = true;
+
+    if (unfinished_files_.empty()) {
+        next_file_.clear();
+        return save("completed");
+    }
+
+    return save("running");
 }
 
-fs::path ResumeManager::normalizeRoot(const fs::path& root)
+const fs::path& ResumeManager::nextFile() const
 {
-    std::error_code error;
-    const fs::path absolute = fs::absolute(root, error);
-    return error ? root.lexically_normal() : absolute.lexically_normal();
+    return next_file_;
 }
 
 bool ResumeManager::load(
     fs::path& root,
     std::string& status,
-    fs::path& next) const
+    fs::path& next)
 {
     std::ifstream file(checkpoint_file_);
-    if (!file) {
-        return false;
-    }
 
-    std::string root_line;
-    std::string next_line;
+    std::string root_text;
+    std::string next_text;
 
-    if (!std::getline(file, root_line) ||
+    if (!file ||
+        !std::getline(file, root_text) ||
         !std::getline(file, status) ||
-        !std::getline(file, next_line)) {
+        !std::getline(file, next_text)) {
         return false;
     }
 
-    root = root_line;
-    next = next_line;
+    root = root_text;
+    next = next_text;
+
     return true;
 }
 
-bool ResumeManager::saveLocked()
+bool ResumeManager::save(const std::string& status)
 {
-    const fs::path parent = checkpoint_file_.parent_path();
-    if (!parent.empty()) {
+    const fs::path directory = checkpoint_file_.parent_path();
+    if (!directory.empty()) {
         std::error_code error;
-        fs::create_directories(parent, error);
-        if (error) {
-            logger_.error("Could not create checkpoint directory");
-            return false;
-        }
+        fs::create_directories(directory, error);
     }
 
-    const fs::path temporary = checkpoint_file_.string() + ".tmp";
+    std::ofstream file(checkpoint_file_);
 
-    {
-        std::ofstream file(temporary, std::ios::trunc);
-        if (!file) {
-            logger_.error("Could not write checkpoint");
-            return false;
-        }
-
-        file << root_.generic_string() << '\n'
-             << status_ << '\n'
-             << next_.generic_string() << '\n';
-    }
-
-    std::error_code error;
-    fs::rename(temporary, checkpoint_file_, error);
-    if (error) {
-        fs::remove(temporary);
-        logger_.error("Could not save checkpoint");
+    if (!file) {
+        logger_.error("Could not save resume checkpoint");
         return false;
     }
 
-    dirty_ = 0;
+    file << root_.generic_string() << '\n'
+         << status << '\n'
+         << next_file_.generic_string() << '\n';
+
     return true;
 }
