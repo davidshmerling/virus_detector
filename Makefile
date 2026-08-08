@@ -5,9 +5,9 @@ LDFLAGS = -pthread -lsqlite3
 BUILD_DIR = build
 OBJ_DIR   = $(BUILD_DIR)/obj
 DEP_DIR   = $(BUILD_DIR)/dep
-BIN_DIR   = $(BUILD_DIR)/bin
 
-TARGET = $(BIN_DIR)/av_scanner
+# The runnable binary lives at the repo root, outside build/.
+TARGET = av
 
 OBJECTS = \
 	main \
@@ -38,10 +38,10 @@ DEPS = $(addprefix $(DEP_DIR)/,$(addsuffix .d,$(OBJECTS)))
 
 all: $(TARGET)
 
-$(OBJ_DIR) $(DEP_DIR) $(BIN_DIR):
+$(OBJ_DIR) $(DEP_DIR):
 	mkdir -p $@
 
-$(TARGET): $(OBJS) | $(BIN_DIR)
+$(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 
 define COMPILE
@@ -75,7 +75,7 @@ $(eval $(call COMPILE,ScanPipeline,Scan/ScanPipeline.cpp))
 -include $(DEPS)
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) $(TARGET)
 
 .PHONY: all clean
 

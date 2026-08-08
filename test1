@@ -1,0 +1,29 @@
+#!/bin/bash
+
+echo "=== 1. Delete cache ==="
+rm -f runtime/cache/cache.db
+find runtime/cache -type f ! -name '.gitkeep' -delete
+
+echo "=== 2. Clean quarantine / metadata ==="
+rm -f runtime/quarantine/metadata.json
+find runtime/quarantine/files -mindepth 1 ! -name '.gitkeep' -exec rm -rf {} +
+
+echo "=== 3. scan-all ==="
+./av scan-all
+
+echo "=== 4. q-list (after first scan) ==="
+./av q-list
+
+echo "=== 5. restore-all ==="
+./av restore-all
+
+echo "=== 6. q-list (after restore) ==="
+./av q-list
+
+echo "=== 7. scan-all (second) ==="
+./av scan-all
+
+echo "=== 8. q-list (after second scan) ==="
+./av q-list
+
+echo "=== Test finished ==="

@@ -50,10 +50,8 @@ void ConsolePrinter::printQuarantineList(
 void ConsolePrinter::printScanSummary(const ScanSummary& summary)
 {
     std::cout << "Scan summary:\n"
-              << "  Discovered:  " << summary.discovered.load() << '\n'
               << "  Scanned:     " << summary.scanned.load() << '\n'
               << "  Cached:      " << summary.cached.load() << '\n'
-              << "  Excluded:    " << summary.excluded.load() << '\n'
               << "  Malicious:   " << summary.malicious.load() << '\n'
               << "  Quarantined: " << summary.quarantined.load() << '\n'
               << "  Failed:      " << summary.failed.load() << '\n';

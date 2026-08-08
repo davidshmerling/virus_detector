@@ -26,7 +26,7 @@ class FileProcessor;  // used only by reference in the per-file helper
 // one file to see what happens from the start of a scan to the end.
 class ScanPipeline {
 public:
-    ScanPipeline();
+    explicit ScanPipeline(Logger& logger);
 
     void scan(const std::filesystem::path& root);
 
@@ -50,7 +50,7 @@ private:
     // never scans or quarantines its own config, runtime data, or binaries.
     void excludeSelf();
 
-    Logger logger_;
+    Logger& logger_;
     SignatureLoader signature_loader_;
     AutomatonBuilder automaton_builder_;
     ExcludeManager exclude_manager_;

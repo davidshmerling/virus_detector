@@ -6,7 +6,9 @@
 #include "Quarantine/QuarantineManager.h"
 #include "Scan/ScanPipeline.h"
 
+#include <exception>
 #include <filesystem>
+#include <string>
 
 int Application::run(int argc, char* argv[])
 {
@@ -16,10 +18,21 @@ int Application::run(int argc, char* argv[])
     PerformanceMonitor monitor(logger, "Total run time");
 
     const Command command = parser_.parse(argc, argv);
-    return dispatch(command);
+
+    // Log any caught exception before it propagates to main(), which prints the
+    // fatal message and sets the exit code.
+    try {
+        return dispatch(command, logger);
+    } catch (const std::exception& exception) {
+        logger.error(std::string("Unhandled exception: ") + exception.what());
+        throw;
+    } catch (...) {
+        logger.error("Unhandled unknown exception");
+        throw;
+    }
 }
 
-int Application::dispatch(const Command& command)
+int Application::dispatch(const Command& command, Logger& logger)
 {
     switch (command.type) {
         case CommandType::Help:
@@ -28,13 +41,13 @@ int Application::dispatch(const Command& command)
 
         case CommandType::ScanAll:
         case CommandType::ScanPath:
-            return runScan(command);
+            return runScan(command, logger);
 
         case CommandType::Restore:
         case CommandType::RestoreAll:
         case CommandType::Delete:
         case CommandType::ListQuarantine:
-            return runQuarantine(command);
+            return runQuarantine(command, logger);
 
         case CommandType::Unknown:
         default:
@@ -44,18 +57,17 @@ int Application::dispatch(const Command& command)
     }
 }
 
-int Application::runScan(const Command& command)
+int Application::runScan(const Command& command, Logger& logger)
 {
     const std::filesystem::path root =
         command.type == CommandType::ScanAll ? "/" : command.argument;
 
-    ScanPipeline().scan(root);
+    ScanPipeline(logger).scan(root);
     return 0;
 }
 
-int Application::runQuarantine(const Command& command)
+int Application::runQuarantine(const Command& command, Logger& logger)
 {
-    Logger logger("runtime/logs");
     QuarantineManager quarantine(logger, "runtime/quarantine");
 
     if (!quarantine.load()) {

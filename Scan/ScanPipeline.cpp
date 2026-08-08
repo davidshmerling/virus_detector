@@ -25,8 +25,8 @@ constexpr std::size_t kQueueCapacity = 1024;
 
 }  // namespace
 
-ScanPipeline::ScanPipeline()
-    : logger_("runtime/logs"),
+ScanPipeline::ScanPipeline(Logger& logger)
+    : logger_(logger),
       cache_manager_(logger_),
       resume_manager_(logger_, "runtime/resume/checkpoint.txt"),
       quarantine_manager_(logger_, "runtime/quarantine")
@@ -70,6 +70,10 @@ void ScanPipeline::scan(const fs::path& root)
     ScanSummary summary;
 
     ConsolePrinter::printScanStarted(root.string());
+    logger_.info("Scan started: " + root.string());
+    if (resumed) {
+        logger_.info("Scan resumed from: " + resume_from.generic_string());
+    }
 
     // 6. Walk the tree; every discovered file becomes one pool task.
     FileTreeWalker walker(logger_, exclude_manager_);
@@ -93,6 +97,7 @@ void ScanPipeline::scan(const fs::path& root)
     cache_manager_.flush();
 
     ConsolePrinter::printScanSummary(summary);
+    logger_.info("Scan completed. " + summary.toLogLine());
 }
 
 void ScanPipeline::handleFile(
@@ -110,6 +115,7 @@ void ScanPipeline::handleFile(
     const fs::file_time_type write_time = fs::last_write_time(file, error);
     if (error) {
         ++summary.failed;
+        logger_.warning("Could not read file: " + file.string());
         resume_manager_.fileCompleted(relative);
         return;
     }
@@ -139,6 +145,7 @@ void ScanPipeline::handleFile(
         matches.empty() ? FileVerdict::Clean : FileVerdict::Malicious;
     if (verdict == FileVerdict::Malicious) {
         ++summary.malicious;
+        logger_.info("Malicious file detected: " + file.string());
         if (quarantine_manager_.quarantine(file, matchedSignatures(matches))) {
             ++summary.quarantined;
         }
