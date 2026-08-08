@@ -1,4 +1,4 @@
-#include "Scan/AutomatonScanner/AutomatonScanner.h"
+#include "Scan/Automaton/AutomatonScanner.h"
 
 AutomatonScanner::AutomatonScanner(const Automaton& automaton)
     : automaton_(automaton)

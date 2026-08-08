@@ -1,4 +1,4 @@
-#include "Scan/AutomatonBuilder/AutomatonBuilder.h"
+#include "Scan/Automaton/AutomatonBuilder.h"
 
 #include <queue>
 

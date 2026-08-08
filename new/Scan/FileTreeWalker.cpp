@@ -1,4 +1,4 @@
-#include "Scan/FileTreeWalker/FileTreeWalker.h"
+#include "Scan/FileTreeWalker.h"
 
 #include <algorithm>
 #include <system_error>

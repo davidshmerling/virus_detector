@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Scan/AutomatonScanner/AutomatonScanner.h"
+#include "Scan/Automaton/AutomatonScanner.h"
 
 #include <cstddef>
 #include <filesystem>

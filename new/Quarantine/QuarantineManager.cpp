@@ -35,7 +35,9 @@ bool QuarantineManager::load()
     return true;
 }
 
-bool QuarantineManager::quarantine(const fs::path& file)
+bool QuarantineManager::quarantine(
+    const fs::path& file,
+    const std::vector<std::string>& signatures)
 {
     std::scoped_lock lock(mutex_);
 
@@ -57,6 +59,7 @@ bool QuarantineManager::quarantine(const fs::path& file)
     entry.id = id;
     entry.original_path = file;
     entry.quarantine_path = destination;
+    entry.signatures = signatures;
     entry.file_size = fs::file_size(destination, error);
     entry.quarantined_at = currentTime();
 
@@ -106,18 +109,6 @@ bool QuarantineManager::remove(const std::string& id)
     }
 
     return repository_.save();
-}
-
-bool QuarantineManager::removeAll()
-{
-    std::scoped_lock lock(mutex_);
-
-    bool all_ok = true;
-    for (const QuarantineEntry& entry : repository_.all()) {
-        all_ok = removeOne(entry.id) && all_ok;
-    }
-
-    return repository_.save() && all_ok;
 }
 
 std::vector<QuarantineEntry> QuarantineManager::list() const

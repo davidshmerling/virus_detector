@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/ScanSummary.h"
+#include "Scan/ScanSummary.h"
 #include "Quarantine/QuarantineEntry.h"
 
 #include <string>

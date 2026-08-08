@@ -1,18 +1,20 @@
-#include "Scan/ScanManager/ScanManager.h"
+#include "Scan/ScanPipeline.h"
 
-#include "Scan/AutomatonScanner/AutomatonScanner.h"
+#include "Scan/Automaton/AutomatonScanner.h"
 #include "Cache/CacheEntry.h"
 #include "Common/FileVerdict.h"
 #include "Console/ConsolePrinter.h"
-#include "Scan/FileProcessor/FileProcessor.h"
-#include "Scan/FileTreeWalker/FileTreeWalker.h"
+#include "Scan/FileProcessor.h"
+#include "Scan/FileTreeWalker.h"
 #include "ThreadPool/ThreadPool.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <string>
 #include <system_error>
 #include <unordered_set>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -23,7 +25,7 @@ constexpr std::size_t kQueueCapacity = 1024;
 
 }  // namespace
 
-ScanManager::ScanManager()
+ScanPipeline::ScanPipeline()
     : logger_("runtime/logs"),
       cache_manager_(logger_),
       resume_manager_(logger_, "runtime/resume/checkpoint.txt"),
@@ -31,7 +33,7 @@ ScanManager::ScanManager()
 {
 }
 
-void ScanManager::scan(const fs::path& root)
+void ScanPipeline::scan(const fs::path& root)
 {
     // 1. Load signatures.
     if (!signature_loader_.load()) {
@@ -51,6 +53,7 @@ void ScanManager::scan(const fs::path& root)
 
     // 3. Load exclude rules, the persisted cache, and quarantine state.
     exclude_manager_.load();
+    excludeSelf();
     cache_manager_.load();
     quarantine_manager_.load();
 
@@ -92,7 +95,7 @@ void ScanManager::scan(const fs::path& root)
     ConsolePrinter::printScanSummary(summary);
 }
 
-void ScanManager::handleFile(
+void ScanPipeline::handleFile(
     const FileProcessor& processor,
     const fs::path& file,
     const fs::path& root,
@@ -136,7 +139,7 @@ void ScanManager::handleFile(
         matches.empty() ? FileVerdict::Clean : FileVerdict::Malicious;
     if (verdict == FileVerdict::Malicious) {
         ++summary.malicious;
-        if (quarantine_manager_.quarantine(file)) {
+        if (quarantine_manager_.quarantine(file, matchedSignatures(matches))) {
             ++summary.quarantined;
         }
     }
@@ -148,4 +151,47 @@ void ScanManager::handleFile(
         .verdict = verdict});
 
     resume_manager_.fileCompleted(relative);
+}
+
+std::vector<std::string> ScanPipeline::matchedSignatures(
+    const std::unordered_set<std::size_t>& matches) const
+{
+    const std::vector<std::string>& all = signature_loader_.signatures();
+
+    std::vector<std::string> result;
+    result.reserve(matches.size());
+    for (const std::size_t index : matches) {
+        if (index < all.size()) {
+            result.push_back(all[index]);
+        }
+    }
+
+    std::ranges::sort(result);
+    return result;
+}
+
+void ScanPipeline::excludeSelf()
+{
+    std::error_code error;
+    const fs::path base = fs::current_path(error);
+    if (error) {
+        return;
+    }
+
+    // Walk up to the project root (the directory holding .git); fall back to
+    // the working directory if no repository marker is found.
+    fs::path root = base;
+    for (fs::path dir = base; !dir.empty(); dir = dir.parent_path()) {
+        std::error_code exists_error;
+        if (fs::exists(dir / ".git", exists_error) && !exists_error) {
+            root = dir;
+            break;
+        }
+        if (dir == dir.root_path()) {
+            break;
+        }
+    }
+
+    exclude_manager_.clearInternalExcludedPaths();
+    exclude_manager_.addInternalExcludedPath(root);
 }

@@ -11,6 +11,7 @@ TARGET = $(BIN_DIR)/av_scanner
 
 OBJECTS = \
 	main \
+	Application \
 	SegfaultHandler \
 	Logger \
 	FileTreeWalker \
@@ -29,7 +30,8 @@ OBJECTS = \
 	QuarantineFileOperations \
 	QuarantineRepository \
 	QuarantineManager \
-	ScanManager
+	PerformanceMonitor \
+	ScanPipeline
 
 OBJS = $(addprefix $(OBJ_DIR)/,$(addsuffix .o,$(OBJECTS)))
 DEPS = $(addprefix $(DEP_DIR)/,$(addsuffix .d,$(OBJECTS)))
@@ -48,9 +50,10 @@ $(OBJ_DIR)/$(1).o: $(2) | $(OBJ_DIR) $(DEP_DIR)
 endef
 
 $(eval $(call COMPILE,main,main.cpp))
+$(eval $(call COMPILE,Application,Application/Application.cpp))
 $(eval $(call COMPILE,SegfaultHandler,CrashHandler/SegfaultHandler.cpp))
 $(eval $(call COMPILE,Logger,Logger/Logger.cpp))
-$(eval $(call COMPILE,FileTreeWalker,Scan/FileTreeWalker/FileTreeWalker.cpp))
+$(eval $(call COMPILE,FileTreeWalker,Scan/FileTreeWalker.cpp))
 $(eval $(call COMPILE,ThreadPool,ThreadPool/ThreadPool.cpp))
 $(eval $(call COMPILE,ResumeManager,Resume/ResumeManager.cpp))
 $(eval $(call COMPILE,SqliteCacheManager,Cache/SqliteCacheManager.cpp))
@@ -60,13 +63,14 @@ $(eval $(call COMPILE,CommandParser,CLI/CommandParser.cpp))
 $(eval $(call COMPILE,ConsolePrinter,Console/ConsolePrinter.cpp))
 $(eval $(call COMPILE,ExcludeManager,Exclude/ExcludeManager.cpp))
 $(eval $(call COMPILE,SignatureLoader,Signature/SignatureLoader.cpp))
-$(eval $(call COMPILE,AutomatonBuilder,Scan/AutomatonBuilder/AutomatonBuilder.cpp))
-$(eval $(call COMPILE,AutomatonScanner,Scan/AutomatonScanner/AutomatonScanner.cpp))
-$(eval $(call COMPILE,FileProcessor,Scan/FileProcessor/FileProcessor.cpp))
+$(eval $(call COMPILE,AutomatonBuilder,Scan/Automaton/AutomatonBuilder.cpp))
+$(eval $(call COMPILE,AutomatonScanner,Scan/Automaton/AutomatonScanner.cpp))
+$(eval $(call COMPILE,FileProcessor,Scan/FileProcessor.cpp))
 $(eval $(call COMPILE,QuarantineFileOperations,Quarantine/QuarantineFileOperations.cpp))
 $(eval $(call COMPILE,QuarantineRepository,Quarantine/QuarantineRepository.cpp))
 $(eval $(call COMPILE,QuarantineManager,Quarantine/QuarantineManager.cpp))
-$(eval $(call COMPILE,ScanManager,Scan/ScanManager/ScanManager.cpp))
+$(eval $(call COMPILE,PerformanceMonitor,Performance/PerformanceMonitor.cpp))
+$(eval $(call COMPILE,ScanPipeline,Scan/ScanPipeline.cpp))
 
 -include $(DEPS)
 

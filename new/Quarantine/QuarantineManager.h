@@ -26,8 +26,11 @@ public:
     // Prepare the folders and read existing metadata into memory.
     bool load();
 
-    // Move a file into quarantine and record it.
-    bool quarantine(const std::filesystem::path& file);
+    // Move a file into quarantine and record it, together with the malware
+    // signatures that matched during the scan.
+    bool quarantine(
+        const std::filesystem::path& file,
+        const std::vector<std::string>& signatures);
 
     // Put a quarantined file back at its original path.
     bool restore(const std::string& id);
@@ -35,7 +38,6 @@ public:
 
     // Delete a quarantined file for good.
     bool remove(const std::string& id);
-    bool removeAll();
 
     std::vector<QuarantineEntry> list() const;
 

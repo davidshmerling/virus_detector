@@ -1,4 +1,4 @@
-#include "Scan/FileProcessor/FileProcessor.h"
+#include "Scan/FileProcessor.h"
 
 #include <fstream>
 #include <span>
