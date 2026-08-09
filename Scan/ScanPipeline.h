@@ -18,6 +18,7 @@
 #include <vector>
 
 class FileProcessor;  // used only by reference in the per-file helper
+class ThreadPool;     // used only by reference when enqueuing scan tasks
 
 // Wires the whole scan pipeline together for one run:
 //   load signatures → build automaton → prepare resume → walk the tree →
@@ -32,25 +33,46 @@ public:
     void scan(const std::filesystem::path& root);
 
 private:
-    // Runs on a worker thread for one discovered file: cache lookup, scan on
-    // miss, cache update, and summary/resume bookkeeping. The file's size,
-    // last-modified time, and relative path already come from the walker inside
-    // FileInfo, so this does no extra filesystem calls before the cache lookup.
+    // Runs on the discovery thread for each file the walker finds: a cache hit
+    // is settled at once, a miss is enqueued for a worker. Always returns true
+    // to keep the walk going.
+    bool handleDiscoveredFile(
+        const FileInfo& info,
+        const FileProcessor& processor,
+        ThreadPool& pool,
+        std::int64_t signatures_last_modified,
+        ScanSummary& summary);
+
+    // Reuses a cached verdict without touching the file, updating the summary
+    // and the resume log.
+    void handleCacheHit(
+        const FileInfo& info,
+        FileVerdict verdict,
+        ScanSummary& summary);
+
+    // Hands a cache miss to a worker as one pool task, carrying the precomputed
+    // metadata so the worker can record the verdict without recomputing it.
+    void enqueueForScan(
+        const FileInfo& info,
+        const FileProcessor& processor,
+        ThreadPool& pool,
+        FileMetadata metadata,
+        ScanSummary& summary);
+
+    // Runs on a worker thread for one file: scan, quarantine on a match, cache
+    // the fresh verdict, and mark the file complete for resume. The file's
+    // size, last-modified time, and relative path already come from the walker
+    // inside FileInfo, so this does no extra filesystem calls before scanning.
     void handleFile(
         const FileProcessor& processor,
         const FileInfo& info,
-        std::int64_t signatures_last_modified,
+        FileMetadata metadata,
         ScanSummary& summary);
 
     // Translates the matched automaton indexes into the signature strings that
     // triggered them, for recording in the quarantine entry.
     std::vector<std::string> matchedSignatures(
         const std::unordered_set<std::size_t>& matches) const;
-
-    // Adds the scanner's own project tree (the directory holding .git, falling
-    // back to the working directory) to the exclude set, so a full-system scan
-    // never scans or quarantines its own config, runtime data, or binaries.
-    void excludeSelf();
 
     Logger& logger_;
     SignatureLoader signature_loader_;

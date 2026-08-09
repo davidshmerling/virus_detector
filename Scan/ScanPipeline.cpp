@@ -12,7 +12,6 @@
 #include <cstddef>
 #include <optional>
 #include <string>
-#include <system_error>
 #include <unordered_set>
 #include <vector>
 
@@ -53,7 +52,7 @@ void ScanPipeline::scan(const fs::path& root)
 
     // 3. Load exclude rules, the persisted cache, and quarantine state.
     exclude_manager_.load();
-    excludeSelf();
+    exclude_manager_.excludeProjectRoot();
     cache_manager_.load();
     quarantine_manager_.load();
 
@@ -75,16 +74,12 @@ void ScanPipeline::scan(const fs::path& root)
         logger_.info("Scan resumed from: " + resume_from.generic_string());
     }
 
-    // 6. Walk the tree; every discovered file becomes one pool task.
+    // 6. Walk the tree; each discovered file is either served from cache or
+    // handed to a worker for scanning.
     FileTreeWalker walker(logger_, exclude_manager_);
     walker.walk(root, resume_from, [&](const FileInfo& info) {
-        ++summary.discovered;
-        resume_manager_.addFile(info.relative_path);
-
-        pool.enqueue([&, info]() {
-            handleFile(processor, info, signatures_last_modified, summary);
-        });
-        return true;
+        return handleDiscoveredFile(
+            info, processor, pool, signatures_last_modified, summary);
     });
 
     // 7. No more files will be discovered.
@@ -100,15 +95,14 @@ void ScanPipeline::scan(const fs::path& root)
     logger_.info("Scan completed. " + summary.toLogLine());
 }
 
-void ScanPipeline::handleFile(
-    const FileProcessor& processor,
+bool ScanPipeline::handleDiscoveredFile(
     const FileInfo& info,
+    const FileProcessor& processor,
+    ThreadPool& pool,
     std::int64_t signatures_last_modified,
     ScanSummary& summary)
 {
-    const fs::path& file = info.path;
-    const fs::path& relative = info.relative_path;
-    const std::string key = file.generic_string();
+    ++summary.discovered;
 
     // Size and last-modified time were already gathered by the walker; no
     // file_size()/last_write_time() calls are needed here.
@@ -119,16 +113,56 @@ void ScanPipeline::handleFile(
 
     // Cache hit: file and signatures unchanged since last scan — reuse verdict.
     if (const std::optional<FileVerdict> cached =
-            cache_manager_.cachedVerdict(key, metadata)) {
-        ++summary.cached;
-        if (*cached == FileVerdict::Malicious) {
-            ++summary.malicious;
-        }
-        resume_manager_.fileCompleted(relative);
-        return;
+            cache_manager_.cachedVerdict(info.path.generic_string(), metadata)) {
+        handleCacheHit(info, *cached, summary);
+        return true;
     }
 
-    // Cache miss: scan the file.
+    enqueueForScan(info, processor, pool, metadata, summary);
+    return true;
+}
+
+void ScanPipeline::handleCacheHit(
+    const FileInfo& info,
+    FileVerdict verdict,
+    ScanSummary& summary)
+{
+    ++summary.cached;
+    if (verdict == FileVerdict::Malicious) {
+        ++summary.malicious;
+    }
+
+    // Record the file as discovered and immediately completed so a checkpoint
+    // never asks to re-scan it.
+    resume_manager_.addFile(info.relative_path);
+    resume_manager_.fileCompleted(info.relative_path);
+}
+
+void ScanPipeline::enqueueForScan(
+    const FileInfo& info,
+    const FileProcessor& processor,
+    ThreadPool& pool,
+    FileMetadata metadata,
+    ScanSummary& summary)
+{
+    resume_manager_.addFile(info.relative_path);
+
+    // The precomputed metadata rides along so the worker records the fresh
+    // verdict without recomputing it.
+    pool.enqueue([&, info, metadata]() {
+        handleFile(processor, info, metadata, summary);
+    });
+}
+
+void ScanPipeline::handleFile(
+    const FileProcessor& processor,
+    const FileInfo& info,
+    FileMetadata metadata,
+    ScanSummary& summary)
+{
+    const fs::path& file = info.path;
+    const fs::path& relative = info.relative_path;
+
     const std::unordered_set<std::size_t> matches = processor.process(file);
     ++summary.scanned;
 
@@ -144,7 +178,7 @@ void ScanPipeline::handleFile(
 
     // Record the fresh verdict so the next run can skip this file.
     cache_manager_.update(CacheEntry{
-        .path = key,
+        .path = file.generic_string(),
         .metadata = metadata,
         .verdict = verdict});
 
@@ -166,30 +200,4 @@ std::vector<std::string> ScanPipeline::matchedSignatures(
 
     std::ranges::sort(result);
     return result;
-}
-
-void ScanPipeline::excludeSelf()
-{
-    std::error_code error;
-    const fs::path base = fs::current_path(error);
-    if (error) {
-        return;
-    }
-
-    // Walk up to the project root (the directory holding .git); fall back to
-    // the working directory if no repository marker is found.
-    fs::path root = base;
-    for (fs::path dir = base; !dir.empty(); dir = dir.parent_path()) {
-        std::error_code exists_error;
-        if (fs::exists(dir / ".git", exists_error) && !exists_error) {
-            root = dir;
-            break;
-        }
-        if (dir == dir.root_path()) {
-            break;
-        }
-    }
-
-    exclude_manager_.clearInternalExcludedPaths();
-    exclude_manager_.addInternalExcludedPath(root);
 }

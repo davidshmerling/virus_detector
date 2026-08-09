@@ -15,6 +15,30 @@ const std::unordered_set<std::string> kSystemExcluded = {
     "/tmp",
 };
 
+// Walks up from the working directory to the project root (the directory
+// holding .git), falling back to the working directory if no repository marker
+// is found.
+fs::path findProjectRoot()
+{
+    std::error_code error;
+    const fs::path base = fs::current_path(error);
+    if (error) {
+        return {};
+    }
+
+    for (fs::path dir = base; !dir.empty(); dir = dir.parent_path()) {
+        std::error_code exists_error;
+        if (fs::exists(dir / ".git", exists_error) && !exists_error) {
+            return dir;
+        }
+        if (dir == dir.root_path()) {
+            break;
+        }
+    }
+
+    return base;
+}
+
 }  // namespace
 
 ExcludeManager::ExcludeManager(fs::path file_path)
@@ -94,6 +118,17 @@ bool ExcludeManager::load()
     }
 
     return true;
+}
+
+void ExcludeManager::excludeProjectRoot()
+{
+    const fs::path root = findProjectRoot();
+    if (root.empty()) {
+        return;
+    }
+
+    clearInternalExcludedPaths();
+    addInternalExcludedPath(root);
 }
 
 void ExcludeManager::clearInternalExcludedPaths()

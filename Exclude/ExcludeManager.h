@@ -16,6 +16,11 @@ public:
 
     bool load();
 
+    // Excludes the scanner's own project tree (the directory holding .git,
+    // falling back to the working directory) so a full-system scan never scans
+    // or quarantines its own config, runtime data, or binaries.
+    void excludeProjectRoot();
+
     void clearInternalExcludedPaths();
     void addInternalExcludedPath(const std::filesystem::path& path);
 
