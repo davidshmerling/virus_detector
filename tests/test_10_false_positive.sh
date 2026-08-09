@@ -1,6 +1,6 @@
 #!/bin/bash
 # A file that merely resembles a signature but is one byte off must stay clean.
-# SIG_A ends in ...123456; here we end in ...12345X.
+# We take SIG_A and change its last character, so no full signature is present.
 set -euo pipefail
 source "$(dirname "$0")/test_helpers.sh"
 require_bin
@@ -8,7 +8,7 @@ require_bin
 reset_cache
 reset_quarantine
 DIR="$(fresh_dir false_positive)"
-printf 'TEST_SIGNATURE_ONE_12345X\n' > "$DIR/almost.txt"
+printf '%s\n' "${SIG_A%?}X" > "$DIR/almost.txt"
 
 OUT="$(av scan "$DIR")"
 echo "$OUT"

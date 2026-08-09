@@ -116,16 +116,31 @@ bool ResumeManager::save(const std::string& status)
         fs::create_directories(directory, error);
     }
 
-    std::ofstream file(checkpoint_file_);
+    // Write to a temp file, then rename into place. rename is atomic on the
+    // same filesystem, so an interrupted save leaves the previous checkpoint
+    // intact instead of a half-written (truncated) one.
+    const fs::path temp_file = checkpoint_file_.string() + ".tmp";
 
-    if (!file) {
+    {
+        std::ofstream file(temp_file, std::ios::trunc);
+
+        if (!file) {
+            logger_.error("Could not save resume checkpoint");
+            return false;
+        }
+
+        file << root_.generic_string() << '\n'
+             << status << '\n'
+             << next_file_.generic_string() << '\n';
+    }
+
+    std::error_code error;
+    fs::rename(temp_file, checkpoint_file_, error);
+    if (error) {
+        fs::remove(temp_file, error);
         logger_.error("Could not save resume checkpoint");
         return false;
     }
-
-    file << root_.generic_string() << '\n'
-         << status << '\n'
-         << next_file_.generic_string() << '\n';
 
     since_last_save_ = 0;
     return true;

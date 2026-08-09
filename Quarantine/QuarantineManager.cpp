@@ -47,6 +47,13 @@ bool QuarantineManager::quarantine(
         return false;
     }
 
+    // Capture the original permissions before the file is moved away, so a
+    // later restore can put it back exactly as it was.
+    std::error_code perms_error;
+    const fs::file_status original_status = fs::status(file, perms_error);
+    const fs::perms original_permissions =
+        perms_error ? fs::perms::unknown : original_status.permissions();
+
     std::string id;
     const fs::path destination = file_ops_.reserveDestination(file, id);
 
@@ -62,6 +69,7 @@ bool QuarantineManager::quarantine(
     entry.signatures = signatures;
     entry.file_size = fs::file_size(destination, error);
     entry.quarantined_at = currentTime();
+    entry.original_permissions = original_permissions;
 
     repository_.add(entry);
 
@@ -136,6 +144,22 @@ bool QuarantineManager::restoreOne(const std::string& id)
     if (!file_ops_.moveOut(entry->quarantine_path, entry->original_path)) {
         logger_.error("Restore failed: could not move file back");
         return false;
+    }
+
+    // Moving across filesystems (copy + delete) does not preserve permissions,
+    // so reapply the ones recorded at quarantine time.
+    if (entry->original_permissions != fs::perms::unknown) {
+        std::error_code perms_error;
+        fs::permissions(
+            entry->original_path,
+            entry->original_permissions,
+            fs::perm_options::replace,
+            perms_error);
+        if (perms_error) {
+            logger_.warning(
+                "Restore: could not reapply permissions to " +
+                entry->original_path.string());
+        }
     }
 
     logger_.info("File restored: " + entry->original_path.string());

@@ -12,13 +12,22 @@ namespace {
 
 nlohmann::json toJson(const QuarantineEntry& entry)
 {
-    return {
+    nlohmann::json json = {
         {"id", entry.id},
         {"original_path", entry.original_path.string()},
         {"quarantine_path", entry.quarantine_path.string()},
         {"signatures", entry.signatures},
         {"file_size", entry.file_size},
         {"quarantined_at", entry.quarantined_at}};
+
+    // Persist permissions as a decimal mode (e.g. 0755 -> 493). Omitted when
+    // unknown so older entries stay backward compatible.
+    if (entry.original_permissions != fs::perms::unknown) {
+        json["permissions"] = static_cast<int>(
+            entry.original_permissions & fs::perms::mask);
+    }
+
+    return json;
 }
 
 QuarantineEntry fromJson(const nlohmann::json& json)
@@ -36,6 +45,13 @@ QuarantineEntry fromJson(const nlohmann::json& json)
 
     entry.file_size = json.at("file_size").get<std::uintmax_t>();
     entry.quarantined_at = json.at("quarantined_at").get<std::string>();
+
+    if (json.contains("permissions") &&
+        json.at("permissions").is_number_integer()) {
+        entry.original_permissions =
+            static_cast<fs::perms>(json.at("permissions").get<int>()) &
+            fs::perms::mask;
+    }
 
     return entry;
 }

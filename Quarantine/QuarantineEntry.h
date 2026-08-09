@@ -12,4 +12,10 @@ struct QuarantineEntry {
     std::vector<std::string> signatures;
     std::uintmax_t file_size = 0;
     std::string quarantined_at;
+
+    // Permissions the file had before it was quarantined, so a restore can put
+    // it back exactly as it was. `unknown` means "not recorded" (e.g. older
+    // metadata) and is left untouched on restore.
+    std::filesystem::perms original_permissions =
+        std::filesystem::perms::unknown;
 };

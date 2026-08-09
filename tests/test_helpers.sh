@@ -23,12 +23,16 @@ PARENT="$(dirname "$ROOT")"
 DATA="${AV_TEST_DATA:-$PARENT/av_test_data}"
 RUNDIR="${AV_TEST_RUNDIR:-$PARENT/av_test_run}"
 
-# Dedicated test signatures. These are written into the sandbox's config and
-# are intentionally NOT the user's real signatures, so the tests are stable and
-# self-describing regardless of what config/signatures.txt actually contains.
-SIG_A="TEST_SIGNATURE_ONE_123456"
-SIG_B="TEST_SIGNATURE_TWO_654321"
-SIG_CHUNK="CHUNK_BOUNDARY_SIGNATURE_ABCXYZ"
+# Dedicated test signatures written into the sandbox's config. They are
+# intentionally long, prefixed, and randomised so there is essentially no chance
+# they appear in any file we did not create ourselves -- important because
+# test_14 exercises `scan-all`, which walks a much larger tree.
+SIG_A="__AV_TEST_SIGNATURE_ALPHA_1f4b9c2e7a6d0853__DO_NOT_MATCH_ANYWHERE__"
+SIG_B="__AV_TEST_SIGNATURE_BETA_9e3d7c1a5b2f8046__DO_NOT_MATCH_ANYWHERE__"
+SIG_C="__AV_TEST_SIGNATURE_GAMMA_5a1b2c3d4e5f6070__DO_NOT_MATCH_ANYWHERE__"
+SIG_D="__AV_TEST_SIGNATURE_DELTA_6b2c3d4e5f607181__DO_NOT_MATCH_ANYWHERE__"
+SIG_E="__AV_TEST_SIGNATURE_EPSILON_7c3d4e5f60718292__DO_NOT_MATCH_ANYWHERE__"
+SIG_CHUNK="__AV_TEST_SIGNATURE_CHUNK_c0ffee1234deadbeef__CROSSES_CHUNK_BOUNDARY__"
 
 require_bin() {
     if [[ ! -x "$BIN" ]]; then
@@ -58,6 +62,9 @@ init_sandbox() {
 # Test-only signatures. Not the real signature set.
 $SIG_A
 $SIG_B
+$SIG_C
+$SIG_D
+$SIG_E
 $SIG_CHUNK
 EOF
 
