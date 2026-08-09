@@ -35,7 +35,6 @@ private:
     bool readSortedChildren(
         const std::filesystem::path& directory,
         std::vector<std::filesystem::directory_entry>& children) const;
-    bool shouldSkip(const std::filesystem::path& path) const;
 
     // Builds a FileInfo from an entry already visited by the DFS, reusing the
     // stat the directory_entry cached. Returns false if the metadata cannot be

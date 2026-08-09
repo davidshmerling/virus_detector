@@ -27,6 +27,12 @@ public:
     // Exact lookup. Use during DFS — excluded dirs are never entered.
     bool contains(const std::filesystem::path& path) const;
 
+    // Per-node skip decision for the DFS: true for a symbolic link (never
+    // followed — it may point outside the tree or form a cycle), an unreadable
+    // path, or an explicitly excluded path. Combines the symlink test with
+    // contains() so the walker does not need to know either rule.
+    bool shouldSkip(const std::filesystem::path& path) const;
+
     // Prefix/ancestry check. Call once on the scan root before DFS starts.
     // Not for per-node use during the walk.
     bool isScanRootExcluded(const std::filesystem::path& root) const;

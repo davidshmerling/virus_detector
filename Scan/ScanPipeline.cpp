@@ -8,11 +8,9 @@
 #include "Scan/FileTreeWalker.h"
 #include "ThreadPool/ThreadPool.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -48,7 +46,7 @@ void ScanPipeline::scan(const fs::path& root)
 
     // A single processor is shared by all workers: its read buffer is
     // thread_local, so each worker still gets its own buffer.
-    const FileProcessor processor(scanner);
+    const FileProcessor processor(scanner, signature_loader_.signatures());
 
     // 3. Load exclude rules, the persisted cache, and quarantine state.
     exclude_manager_.load();
@@ -163,15 +161,15 @@ void ScanPipeline::handleFile(
     const fs::path& file = info.path;
     const fs::path& relative = info.relative_path;
 
-    const std::unordered_set<std::size_t> matches = processor.process(file);
+    const std::vector<std::string> signatures = processor.process(file);
     ++summary.scanned;
 
     const FileVerdict verdict =
-        matches.empty() ? FileVerdict::Clean : FileVerdict::Malicious;
+        signatures.empty() ? FileVerdict::Clean : FileVerdict::Malicious;
     if (verdict == FileVerdict::Malicious) {
         ++summary.malicious;
         logger_.info("Malicious file detected: " + file.string());
-        if (quarantine_manager_.quarantine(file, matchedSignatures(matches))) {
+        if (quarantine_manager_.quarantine(file, signatures)) {
             ++summary.quarantined;
         }
     }
@@ -183,21 +181,4 @@ void ScanPipeline::handleFile(
         .verdict = verdict});
 
     resume_manager_.fileCompleted(relative);
-}
-
-std::vector<std::string> ScanPipeline::matchedSignatures(
-    const std::unordered_set<std::size_t>& matches) const
-{
-    const std::vector<std::string>& all = signature_loader_.signatures();
-
-    std::vector<std::string> result;
-    result.reserve(matches.size());
-    for (const std::size_t index : matches) {
-        if (index < all.size()) {
-            result.push_back(all[index]);
-        }
-    }
-
-    std::ranges::sort(result);
-    return result;
 }

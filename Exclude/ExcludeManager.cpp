@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <string_view>
+#include <system_error>
 
 namespace fs = std::filesystem;
 
@@ -147,6 +148,21 @@ void ExcludeManager::addInternalExcludedPath(const fs::path& path)
 bool ExcludeManager::contains(const fs::path& path) const
 {
     return exact_.contains(normalize(path).generic_string());
+}
+
+bool ExcludeManager::shouldSkip(const fs::path& path) const
+{
+    std::error_code error;
+    const fs::file_status status = fs::symlink_status(path, error);
+    if (error) {
+        return true;
+    }
+    if (status.type() == fs::file_type::symlink) {
+        return true;
+    }
+
+    // Exact exclude only — parents already passed DFS exclusion.
+    return contains(path);
 }
 
 bool ExcludeManager::isScanRootExcluded(const fs::path& root) const

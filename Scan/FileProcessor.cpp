@@ -1,17 +1,21 @@
 #include "Scan/FileProcessor.h"
 
+#include <algorithm>
 #include <fstream>
 #include <span>
 #include <vector>
 
 namespace fs = std::filesystem;
 
-FileProcessor::FileProcessor(const AutomatonScanner& scanner)
-    : scanner_(scanner)
+FileProcessor::FileProcessor(
+    const AutomatonScanner& scanner,
+    const std::vector<std::string>& signatures)
+    : scanner_(scanner),
+      signatures_(signatures)
 {
 }
 
-std::unordered_set<std::size_t> FileProcessor::process(const fs::path& path) const
+std::vector<std::string> FileProcessor::process(const fs::path& path) const
 {
     // One 1 MB read buffer per worker thread: allocated on this thread's first
     // call and reused for every file it scans afterwards. Because it is
@@ -23,7 +27,7 @@ std::unordered_set<std::size_t> FileProcessor::process(const fs::path& path) con
 
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open()) {
-        return matched_indices;
+        return {};
     }
 
     // State lives across all chunks of this one file, so a signature that
@@ -48,5 +52,20 @@ std::unordered_set<std::size_t> FileProcessor::process(const fs::path& path) con
             matched_indices);
     }
 
-    return matched_indices;
+    return matchedSignatures(matched_indices);
+}
+
+std::vector<std::string> FileProcessor::matchedSignatures(
+    const std::unordered_set<std::size_t>& matches) const
+{
+    std::vector<std::string> result;
+    result.reserve(matches.size());
+    for (const std::size_t index : matches) {
+        if (index < signatures_.size()) {
+            result.push_back(signatures_[index]);
+        }
+    }
+
+    std::ranges::sort(result);
+    return result;
 }

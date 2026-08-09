@@ -58,7 +58,7 @@ bool FileTreeWalker::walkDirectory(
     std::size_t depth,
     const FileCallback& on_file) const
 {
-    if (shouldSkip(directory)) {
+    if (exclude_.shouldSkip(directory)) {
         return true;
     }
 
@@ -72,7 +72,7 @@ bool FileTreeWalker::walkDirectory(
 
     for (const fs::directory_entry& entry : children) {
         const fs::path path = entry.path();
-        if (shouldSkip(path)) {
+        if (exclude_.shouldSkip(path)) {
             continue;
         }
 
@@ -162,20 +162,4 @@ bool FileTreeWalker::readSortedChildren(
              < b.path().filename().generic_string();
     });
     return true;
-}
-
-bool FileTreeWalker::shouldSkip(const fs::path& path) const
-{
-    std::error_code error;
-    const fs::file_status status = fs::symlink_status(path, error);
-    if (error) {
-        return true;
-    }
-    if (status.type() == fs::file_type::symlink) {
-        logger_.warning("Skipping symbolic link: " + path.string());
-        return true;
-    }
-
-    // Exact exclude only — parents already passed DFS exclusion.
-    return exclude_.contains(path);
 }

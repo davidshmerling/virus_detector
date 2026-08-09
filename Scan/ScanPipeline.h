@@ -10,12 +10,8 @@
 #include "Resume/ResumeManager.h"
 #include "Signature/SignatureLoader.h"
 
-#include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <string>
-#include <unordered_set>
-#include <vector>
 
 class FileProcessor;  // used only by reference in the per-file helper
 class ThreadPool;     // used only by reference when enqueuing scan tasks
@@ -68,11 +64,6 @@ private:
         const FileInfo& info,
         FileMetadata metadata,
         ScanSummary& summary);
-
-    // Translates the matched automaton indexes into the signature strings that
-    // triggered them, for recording in the quarantine entry.
-    std::vector<std::string> matchedSignatures(
-        const std::unordered_set<std::size_t>& matches) const;
 
     Logger& logger_;
     SignatureLoader signature_loader_;

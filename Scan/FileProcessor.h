@@ -4,7 +4,9 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <string>
 #include <unordered_set>
+#include <vector>
 
 // The pipeline for a single file: opens it, reads it in 1 MB chunks, and runs
 // each chunk through the automaton (AutomatonScanner), carrying the automaton
@@ -18,13 +20,21 @@ class FileProcessor {
 public:
     static constexpr std::size_t kChunkSize = 1024 * 1024;  // 1 MB
 
-    explicit FileProcessor(const AutomatonScanner& scanner);
+    FileProcessor(
+        const AutomatonScanner& scanner,
+        const std::vector<std::string>& signatures);
 
-    // Scan one file. Returns the set of matched signature indexes (unique,
-    // unordered). Empty means clean, or the file could not be opened.
-    std::unordered_set<std::size_t> process(
+    // Scan one file. Returns the signature strings that matched (unique,
+    // sorted). Empty means clean, or the file could not be opened.
+    std::vector<std::string> process(
         const std::filesystem::path& path) const;
 
 private:
+    // Translates matched automaton indexes back into the signature strings that
+    // triggered them (sorted), for recording in a quarantine entry.
+    std::vector<std::string> matchedSignatures(
+        const std::unordered_set<std::size_t>& matches) const;
+
     const AutomatonScanner& scanner_;
+    const std::vector<std::string>& signatures_;
 };
