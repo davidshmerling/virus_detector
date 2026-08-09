@@ -6,9 +6,10 @@
 
 namespace fs = std::filesystem;
 
-FileTreeWalker::FileTreeWalker(Logger& logger, const ExcludeManager& exclude)
+FileTreeWalker::FileTreeWalker(Logger& logger, const ExcludeSet& exclude)
     : logger_(logger),
-      exclude_(exclude),
+      path_filter_(exclude),
+      root_guard_(exclude),
       file_info_builder_(logger)
 {
 }
@@ -27,7 +28,7 @@ bool FileTreeWalker::walk(
     // One-time ancestry check for the requested root only.
     // After this, the DFS uses per-node shouldSkip() — excluded dirs are never
     // entered.
-    if (exclude_.isRootInsideExcludedPath(root)) {
+    if (root_guard_.isRootInsideExcludedPath(root)) {
         logger_.warning("Scan root is excluded: " + root.string());
         return true;
     }
@@ -58,7 +59,7 @@ bool FileTreeWalker::walkDirectory(
     std::size_t depth,
     const FileCallback& on_file) const
 {
-    if (exclude_.shouldSkip(directory)) {
+    if (path_filter_.shouldSkip(directory)) {
         return true;
     }
 
@@ -85,7 +86,7 @@ bool FileTreeWalker::visitEntry(
 {
     const fs::path path = entry.path();
 
-    if (exclude_.shouldSkip(path)) {
+    if (path_filter_.shouldSkip(path)) {
         return true;
     }
 

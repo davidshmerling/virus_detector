@@ -49,8 +49,8 @@ void ScanPipeline::scan(const fs::path& root)
     const FileProcessor processor(scanner, signature_loader_.signatures());
 
     // 3. Load exclude rules, the persisted cache, and quarantine state.
-    exclude_manager_.load();
-    exclude_manager_.excludeProjectRoot();
+    exclude_set_.load();
+    exclude_set_.excludeProjectRoot();
     cache_manager_.load();
     quarantine_manager_.load();
 
@@ -74,7 +74,7 @@ void ScanPipeline::scan(const fs::path& root)
 
     // 6. Walk the tree; each discovered file is either served from cache or
     // handed to a worker for scanning.
-    FileTreeWalker walker(logger_, exclude_manager_);
+    FileTreeWalker walker(logger_, exclude_set_);
     walker.walk(root, resume_from, [&](const FileInfo& info) {
         return handleDiscoveredFile(
             info, processor, pool, signatures_last_modified, summary);
@@ -88,6 +88,12 @@ void ScanPipeline::scan(const fs::path& root)
 
     // 9. Persist the cache (the checkpoint is saved on every state change).
     cache_manager_.flush();
+
+    // 10. The scan finished successfully: promote this generation to "last
+    // completed" so the next run can reclaim anything older. Reaching this point
+    // means no crash interrupted the run (a kill never gets here, so a partial
+    // scan never advances the generation).
+    cache_manager_.commitGeneration();
 
     ConsolePrinter::printScanSummary(summary);
     logger_.info("Scan completed. " + summary.toLogLine());
@@ -112,7 +118,7 @@ bool ScanPipeline::handleDiscoveredFile(
     // Cache hit: file and signatures unchanged since last scan — reuse verdict.
     if (const std::optional<FileVerdict> cached =
             cache_manager_.cachedVerdict(info.path.generic_string(), metadata)) {
-        handleCacheHit(info, *cached, summary);
+        handleCacheHit(info, *cached, metadata, summary);
         return true;
     }
 
@@ -123,12 +129,20 @@ bool ScanPipeline::handleDiscoveredFile(
 void ScanPipeline::handleCacheHit(
     const FileInfo& info,
     FileVerdict verdict,
+    FileMetadata metadata,
     ScanSummary& summary)
 {
     ++summary.cached;
     if (verdict == FileVerdict::Malicious) {
         ++summary.malicious;
     }
+
+    // Re-stamp the entry with the current generation (done inside update) so
+    // this still-present file is not reclaimed as stale on the next run.
+    cache_manager_.update(CacheEntry{
+        .path = info.path.generic_string(),
+        .metadata = metadata,
+        .verdict = verdict});
 
     // Record the file as discovered and immediately completed so a checkpoint
     // never asks to re-scan it.

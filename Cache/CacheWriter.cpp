@@ -2,9 +2,16 @@
 
 #include <utility>
 
-CacheWriter::CacheWriter(SqliteCacheManager& storage, std::size_t flush_threshold)
+namespace {
+
+// Persist to SQLite once this many pending changes (upserts + removals) pile
+// up; a flush() call or shutdown persists earlier regardless.
+constexpr std::size_t kFlushThreshold = 100;
+
+}  // namespace
+
+CacheWriter::CacheWriter(SqliteCacheManager& storage)
     : storage_(storage),
-      flush_threshold_(flush_threshold == 0 ? 1 : flush_threshold),
       thread_([this]() { run(); })
 {
 }
@@ -114,7 +121,7 @@ void CacheWriter::run()
         }
 
         const bool should_persist =
-            dirty.size() + removals.size() >= flush_threshold_ ||
+            dirty.size() + removals.size() >= kFlushThreshold ||
             flush_now ||
             stop;
 

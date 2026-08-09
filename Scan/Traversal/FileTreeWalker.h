@@ -1,6 +1,8 @@
 #pragma once
 
-#include "Exclude/ExcludeManager.h"
+#include "Exclude/ExcludeSet.h"
+#include "Exclude/PathFilter.h"
+#include "Exclude/ScanRootGuard.h"
 #include "Logger/Logger.h"
 #include "Resume/ResumePathFilter.h"
 #include "Scan/Traversal/FileInfo.h"
@@ -19,10 +21,11 @@ class FileTreeWalker {
 public:
     using FileCallback = std::function<bool(const FileInfo&)>;
 
-    FileTreeWalker(Logger& logger, const ExcludeManager& exclude);
+    FileTreeWalker(Logger& logger, const ExcludeSet& exclude);
 
     // Empty resume_from → full walk from root.
-    // Calls isScanRootExcluded(root) once, then DFS uses contains() only.
+    // Checks the root once via ScanRootGuard, then the DFS uses PathFilter per
+    // node.
     bool walk(const std::filesystem::path& root,
               const std::filesystem::path& resume_from,
               const FileCallback& on_file) const;
@@ -62,6 +65,7 @@ private:
         std::vector<std::filesystem::directory_entry>& children) const;
 
     Logger& logger_;
-    const ExcludeManager& exclude_;
+    PathFilter path_filter_;
+    ScanRootGuard root_guard_;
     FileInfoBuilder file_info_builder_;
 };

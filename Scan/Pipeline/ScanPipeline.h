@@ -4,7 +4,7 @@
 #include "Cache/CacheManager.h"
 #include "Scan/Pipeline/ScanSummary.h"
 #include "Scan/Traversal/FileInfo.h"
-#include "Exclude/ExcludeManager.h"
+#include "Exclude/ExcludeSet.h"
 #include "Logger/Logger.h"
 #include "Quarantine/QuarantineManager.h"
 #include "Resume/ResumeManager.h"
@@ -40,10 +40,12 @@ private:
         ScanSummary& summary);
 
     // Reuses a cached verdict without touching the file, updating the summary
-    // and the resume log.
+    // and the resume log. Re-stamps the cache entry with the current generation
+    // so this still-present file survives the next stale-entry cleanup.
     void handleCacheHit(
         const FileInfo& info,
         FileVerdict verdict,
+        FileMetadata metadata,
         ScanSummary& summary);
 
     // Hands a cache miss to a worker as one pool task, carrying the precomputed
@@ -68,7 +70,7 @@ private:
     Logger& logger_;
     SignatureLoader signature_loader_;
     AutomatonBuilder automaton_builder_;
-    ExcludeManager exclude_manager_;
+    ExcludeSet exclude_set_;
     CacheManager cache_manager_;
     ResumeManager resume_manager_;
     QuarantineManager quarantine_manager_;

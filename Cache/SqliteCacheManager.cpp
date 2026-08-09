@@ -14,29 +14,79 @@ CREATE TABLE IF NOT EXISTS cache_entries (
     file_last_modified INTEGER NOT NULL,
     file_size INTEGER NOT NULL,
     signatures_last_modified INTEGER NOT NULL,
-    verdict INTEGER NOT NULL
+    verdict INTEGER NOT NULL,
+    generation INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS cache_meta (
+    key TEXT PRIMARY KEY,
+    value INTEGER NOT NULL
 );
 )";
 
+constexpr const char* kCountAllSql = R"(
+SELECT COUNT(*) FROM cache_entries;
+)";
+
 constexpr const char* kSelectAllSql = R"(
-SELECT path, file_last_modified, file_size, signatures_last_modified, verdict
-FROM cache_entries;
+SELECT path, file_last_modified, file_size, signatures_last_modified, verdict,
+       generation
+FROM cache_entries
+WHERE generation >= ?;
 )";
 
 constexpr const char* kUpsertSql = R"(
 INSERT INTO cache_entries (
-    path, file_last_modified, file_size, signatures_last_modified, verdict
-) VALUES (?, ?, ?, ?, ?)
+    path, file_last_modified, file_size, signatures_last_modified, verdict,
+    generation
+) VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(path) DO UPDATE SET
     file_last_modified = excluded.file_last_modified,
     file_size = excluded.file_size,
     signatures_last_modified = excluded.signatures_last_modified,
-    verdict = excluded.verdict;
+    verdict = excluded.verdict,
+    generation = excluded.generation;
 )";
 
 constexpr const char* kDeleteSql = R"(
 DELETE FROM cache_entries WHERE path = ?;
 )";
+
+constexpr const char* kDeleteOlderSql = R"(
+DELETE FROM cache_entries WHERE generation < ?;
+)";
+
+constexpr const char* kSelectGenerationSql = R"(
+SELECT value FROM cache_meta WHERE key = 'last_completed_generation';
+)";
+
+constexpr const char* kUpsertGenerationSql = R"(
+INSERT INTO cache_meta (key, value)
+VALUES ('last_completed_generation', ?)
+ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+)";
+
+constexpr const char* kClearAllSql = R"(
+DELETE FROM cache_entries;
+DELETE FROM cache_meta;
+)";
+
+// Number of rows in cache_entries, so the map can be reserved before loading.
+std::size_t countRows(sqlite3* database)
+{
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(database, kCountAllSql, -1, &statement, nullptr) !=
+        SQLITE_OK) {
+        return 0;
+    }
+
+    std::size_t count = 0;
+    if (sqlite3_step(statement) == SQLITE_ROW) {
+        count = static_cast<std::size_t>(sqlite3_column_int64(statement, 0));
+    }
+
+    sqlite3_finalize(statement);
+    return count;
+}
 
 }  // namespace
 
@@ -94,18 +144,26 @@ bool SqliteCacheManager::open()
            exec(kCreateTableSql);
 }
 
-std::vector<CacheEntry> SqliteCacheManager::loadAll()
+std::unordered_map<std::string, CacheEntry> SqliteCacheManager::loadAll(
+    std::uint64_t min_generation)
 {
-    std::vector<CacheEntry> entries;
+    std::unordered_map<std::string, CacheEntry> cache;
     if (database_ == nullptr) {
-        return entries;
+        return cache;
     }
+
+    // Reserve from the row count so inserting every row never rehashes. Stale
+    // rows are deleted before this call, so the count matches what we load.
+    cache.reserve(countRows(database_));
 
     sqlite3_stmt* statement = nullptr;
     if (sqlite3_prepare_v2(database_, kSelectAllSql, -1, &statement, nullptr) !=
         SQLITE_OK) {
-        return entries;
+        return cache;
     }
+
+    sqlite3_bind_int64(
+        statement, 1, static_cast<sqlite3_int64>(min_generation));
 
     while (sqlite3_step(statement) == SQLITE_ROW) {
         const unsigned char* path_text = sqlite3_column_text(statement, 0);
@@ -121,11 +179,89 @@ std::vector<CacheEntry> SqliteCacheManager::loadAll()
         entry.metadata.signatures_last_modified =
             sqlite3_column_int64(statement, 3);
         entry.verdict = static_cast<FileVerdict>(sqlite3_column_int(statement, 4));
-        entries.push_back(std::move(entry));
+        entry.generation =
+            static_cast<std::uint64_t>(sqlite3_column_int64(statement, 5));
+
+        std::string path = entry.path;
+        cache.emplace(std::move(path), std::move(entry));
     }
 
     sqlite3_finalize(statement);
-    return entries;
+    return cache;
+}
+
+std::uint64_t SqliteCacheManager::loadLastCompletedGeneration()
+{
+    if (database_ == nullptr) {
+        return 0;
+    }
+
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(
+            database_, kSelectGenerationSql, -1, &statement, nullptr) !=
+        SQLITE_OK) {
+        return 0;
+    }
+
+    std::uint64_t generation = 0;
+    if (sqlite3_step(statement) == SQLITE_ROW) {
+        generation =
+            static_cast<std::uint64_t>(sqlite3_column_int64(statement, 0));
+    }
+
+    sqlite3_finalize(statement);
+    return generation;
+}
+
+bool SqliteCacheManager::saveLastCompletedGeneration(std::uint64_t generation)
+{
+    if (database_ == nullptr) {
+        return false;
+    }
+
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(
+            database_, kUpsertGenerationSql, -1, &statement, nullptr) !=
+        SQLITE_OK) {
+        return false;
+    }
+
+    const bool ok =
+        sqlite3_bind_int64(
+            statement, 1, static_cast<sqlite3_int64>(generation)) == SQLITE_OK &&
+        sqlite3_step(statement) == SQLITE_DONE;
+
+    sqlite3_finalize(statement);
+    return ok;
+}
+
+bool SqliteCacheManager::deleteOlderThan(std::uint64_t generation)
+{
+    if (database_ == nullptr) {
+        return false;
+    }
+
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(database_, kDeleteOlderSql, -1, &statement, nullptr) !=
+        SQLITE_OK) {
+        return false;
+    }
+
+    const bool ok =
+        sqlite3_bind_int64(
+            statement, 1, static_cast<sqlite3_int64>(generation)) == SQLITE_OK &&
+        sqlite3_step(statement) == SQLITE_DONE;
+
+    sqlite3_finalize(statement);
+    return ok;
+}
+
+bool SqliteCacheManager::clearAll()
+{
+    if (database_ == nullptr) {
+        return false;
+    }
+    return exec(kClearAllSql);
 }
 
 bool SqliteCacheManager::upsertBatch(const std::vector<CacheEntry>& entries)
@@ -161,6 +297,9 @@ bool SqliteCacheManager::upsertBatch(const std::vector<CacheEntry>& entries)
                 statement, 4, entry.metadata.signatures_last_modified) !=
                 SQLITE_OK ||
             sqlite3_bind_int(statement, 5, static_cast<int>(entry.verdict)) !=
+                SQLITE_OK ||
+            sqlite3_bind_int64(
+                statement, 6, static_cast<sqlite3_int64>(entry.generation)) !=
                 SQLITE_OK ||
             sqlite3_step(statement) != SQLITE_DONE) {
             ok = false;

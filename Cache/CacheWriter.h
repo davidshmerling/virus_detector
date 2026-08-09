@@ -15,9 +15,7 @@
 // Async SQLite writer — queue + single thread only.
 class CacheWriter {
 public:
-    explicit CacheWriter(
-        SqliteCacheManager& storage,
-        std::size_t flush_threshold = 100);
+    explicit CacheWriter(SqliteCacheManager& storage);
     ~CacheWriter();
 
     CacheWriter(const CacheWriter&) = delete;
@@ -34,7 +32,6 @@ private:
         std::vector<std::string>& removals);
 
     SqliteCacheManager& storage_;
-    std::size_t flush_threshold_;
 
     std::mutex mutex_;
     std::condition_variable cv_;

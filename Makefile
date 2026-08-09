@@ -21,10 +21,13 @@ OBJECTS = \
 	ResumeManager \
 	SqliteCacheManager \
 	CacheWriter \
+	CacheCleaner \
 	CacheManager \
 	CommandParser \
 	ConsolePrinter \
-	ExcludeManager \
+	ExcludeSet \
+	PathFilter \
+	ScanRootGuard \
 	SignatureLoader \
 	AutomatonBuilder \
 	AutomatonScanner \
@@ -62,10 +65,13 @@ $(eval $(call COMPILE,ThreadPool,ThreadPool/ThreadPool.cpp))
 $(eval $(call COMPILE,ResumeManager,Resume/ResumeManager.cpp))
 $(eval $(call COMPILE,SqliteCacheManager,Cache/SqliteCacheManager.cpp))
 $(eval $(call COMPILE,CacheWriter,Cache/CacheWriter.cpp))
+$(eval $(call COMPILE,CacheCleaner,Cache/CacheCleaner.cpp))
 $(eval $(call COMPILE,CacheManager,Cache/CacheManager.cpp))
 $(eval $(call COMPILE,CommandParser,CLI/CommandParser.cpp))
 $(eval $(call COMPILE,ConsolePrinter,Console/ConsolePrinter.cpp))
-$(eval $(call COMPILE,ExcludeManager,Exclude/ExcludeManager.cpp))
+$(eval $(call COMPILE,ExcludeSet,Exclude/ExcludeSet.cpp))
+$(eval $(call COMPILE,PathFilter,Exclude/PathFilter.cpp))
+$(eval $(call COMPILE,ScanRootGuard,Exclude/ScanRootGuard.cpp))
 $(eval $(call COMPILE,SignatureLoader,Signature/SignatureLoader.cpp))
 $(eval $(call COMPILE,AutomatonBuilder,Scan/Automaton/AutomatonBuilder.cpp))
 $(eval $(call COMPILE,AutomatonScanner,Scan/Automaton/AutomatonScanner.cpp))

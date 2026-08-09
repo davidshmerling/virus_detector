@@ -1,11 +1,13 @@
 #pragma once
 
+#include "Cache/CacheCleaner.h"
 #include "Cache/CacheEntry.h"
 #include "Cache/CacheWriter.h"
 #include "Cache/SqliteCacheManager.h"
 #include "Common/FileVerdict.h"
 #include "Logger/Logger.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <shared_mutex>
@@ -27,14 +29,28 @@ public:
         const std::string& path,
         FileMetadata metadata) const;
 
+    // Records a fresh verdict. The entry is stamped with the current scan
+    // generation, marking the file as seen by this scan.
     void update(CacheEntry entry);
     void remove(const std::string& path);
     void flush();
 
+    // Promotes the in-progress generation to "last completed". Call only after a
+    // scan finishes successfully; anything older than this becomes reclaimable on
+    // the next run. Must run after flush() so every stamped entry is durable
+    // before the generation is declared complete.
+    void commitGeneration();
+
 private:
     Logger& logger_;
     mutable std::shared_mutex mutex_;
-    std::unordered_map<std::string, CacheEntry> entries_;
+    std::unordered_map<std::string, CacheEntry> cache_entries_;
+
+    // The generation stamped onto every entry seen during the current scan,
+    // always last_completed + 1. Set once by load() before any scanning starts.
+    std::uint64_t current_generation_ = 0;
+
     SqliteCacheManager storage_;
+    CacheCleaner cleaner_;
     CacheWriter writer_;
 };
