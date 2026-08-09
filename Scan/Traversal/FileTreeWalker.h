@@ -2,9 +2,8 @@
 
 #include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
-#include "Scan/FileInfo.h"
-#include "Scan/FileInfoBuilder.h"
-#include "Scan/ResumePathFilter.h"
+#include "Resume/ResumePathFilter.h"
+#include "Scan/Traversal/FileInfo.h"
 
 #include <cstddef>
 #include <filesystem>

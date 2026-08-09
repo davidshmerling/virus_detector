@@ -16,6 +16,7 @@ OBJECTS = \
 	Logger \
 	FileTreeWalker \
 	ResumePathFilter \
+	FileInfo \
 	ThreadPool \
 	ResumeManager \
 	SqliteCacheManager \
@@ -54,8 +55,9 @@ $(eval $(call COMPILE,main,main.cpp))
 $(eval $(call COMPILE,Application,Application/Application.cpp))
 $(eval $(call COMPILE,SegfaultHandler,CrashHandler/SegfaultHandler.cpp))
 $(eval $(call COMPILE,Logger,Logger/Logger.cpp))
-$(eval $(call COMPILE,FileTreeWalker,Scan/FileTreeWalker.cpp))
-$(eval $(call COMPILE,ResumePathFilter,Scan/ResumePathFilter.cpp))
+$(eval $(call COMPILE,FileTreeWalker,Scan/Traversal/FileTreeWalker.cpp))
+$(eval $(call COMPILE,ResumePathFilter,Resume/ResumePathFilter.cpp))
+$(eval $(call COMPILE,FileInfo,Scan/Traversal/FileInfo.cpp))
 $(eval $(call COMPILE,ThreadPool,ThreadPool/ThreadPool.cpp))
 $(eval $(call COMPILE,ResumeManager,Resume/ResumeManager.cpp))
 $(eval $(call COMPILE,SqliteCacheManager,Cache/SqliteCacheManager.cpp))
@@ -72,7 +74,7 @@ $(eval $(call COMPILE,QuarantineFileOperations,Quarantine/QuarantineFileOperatio
 $(eval $(call COMPILE,QuarantineRepository,Quarantine/QuarantineRepository.cpp))
 $(eval $(call COMPILE,QuarantineManager,Quarantine/QuarantineManager.cpp))
 $(eval $(call COMPILE,PerformanceMonitor,Performance/PerformanceMonitor.cpp))
-$(eval $(call COMPILE,ScanPipeline,Scan/ScanPipeline.cpp))
+$(eval $(call COMPILE,ScanPipeline,Scan/Pipeline/ScanPipeline.cpp))
 
 -include $(DEPS)
 

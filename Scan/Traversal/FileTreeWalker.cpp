@@ -1,4 +1,4 @@
-#include "Scan/FileTreeWalker.h"
+#include "Scan/Traversal/FileTreeWalker.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -25,8 +25,9 @@ bool FileTreeWalker::walk(
     }
 
     // One-time ancestry check for the requested root only.
-    // After this, DFS uses exact contains() — excluded dirs are never entered.
-    if (exclude_.isScanRootExcluded(root)) {
+    // After this, the DFS uses per-node shouldSkip() — excluded dirs are never
+    // entered.
+    if (exclude_.isRootInsideExcludedPath(root)) {
         logger_.warning("Scan root is excluded: " + root.string());
         return true;
     }

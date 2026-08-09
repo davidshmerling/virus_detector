@@ -1,4 +1,4 @@
-#include "Scan/ResumePathFilter.h"
+#include "Resume/ResumePathFilter.h"
 
 namespace fs = std::filesystem;
 

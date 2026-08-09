@@ -2,8 +2,8 @@
 
 #include "Scan/Automaton/AutomatonBuilder.h"
 #include "Cache/CacheManager.h"
-#include "Scan/FileInfo.h"
-#include "Scan/ScanSummary.h"
+#include "Scan/Pipeline/ScanSummary.h"
+#include "Scan/Traversal/FileInfo.h"
 #include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
 #include "Quarantine/QuarantineManager.h"

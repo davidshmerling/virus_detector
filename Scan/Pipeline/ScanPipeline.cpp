@@ -1,11 +1,11 @@
-#include "Scan/ScanPipeline.h"
+#include "Scan/Pipeline/ScanPipeline.h"
 
 #include "Scan/Automaton/AutomatonScanner.h"
 #include "Cache/CacheEntry.h"
 #include "Common/FileVerdict.h"
 #include "Console/ConsolePrinter.h"
 #include "Scan/FileProcessor.h"
-#include "Scan/FileTreeWalker.h"
+#include "Scan/Traversal/FileTreeWalker.h"
 #include "ThreadPool/ThreadPool.h"
 
 #include <cstddef>

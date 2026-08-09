@@ -4,7 +4,7 @@
 #include "Logger/Logger.h"
 #include "Performance/PerformanceMonitor.h"
 #include "Quarantine/QuarantineManager.h"
-#include "Scan/ScanPipeline.h"
+#include "Scan/Pipeline/ScanPipeline.h"
 
 #include <exception>
 #include <filesystem>

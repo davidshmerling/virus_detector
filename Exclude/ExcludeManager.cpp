@@ -1,12 +1,15 @@
 #include "Exclude/ExcludeManager.h"
 
 #include <fstream>
+#include <string>
 #include <string_view>
 #include <system_error>
 
 namespace fs = std::filesystem;
 
 namespace {
+
+// --- constants ---------------------------------------------------------------
 
 const std::unordered_set<std::string> kSystemExcluded = {
     "/proc",
@@ -15,6 +18,40 @@ const std::unordered_set<std::string> kSystemExcluded = {
     "/run",
     "/tmp",
 };
+
+// --- path helpers (no ExcludeManager state) ----------------------------------
+
+std::string trim(const std::string& text)
+{
+    const std::string_view view = text;
+    const std::size_t start = view.find_first_not_of(" \t\r\n");
+    if (start == std::string_view::npos) {
+        return {};
+    }
+    const std::size_t end = view.find_last_not_of(" \t\r\n");
+    return std::string{view.substr(start, end - start + 1)};
+}
+
+std::string normalizePath(const fs::path& path)
+{
+    std::error_code error;
+    fs::path normalized = fs::weakly_canonical(path, error);
+    if (error) {
+        normalized = path.lexically_normal();
+    }
+    return normalized.generic_string();
+}
+
+// True when path is prefix itself or a descendant of it (prefix/...).
+bool isSameOrDescendant(std::string_view path, std::string_view prefix)
+{
+    if (path == prefix) {
+        return true;
+    }
+    return path.size() > prefix.size() &&
+           path.starts_with(prefix) &&
+           path[prefix.size()] == '/';
+}
 
 // Walks up from the working directory to the project root (the directory
 // holding .git), falling back to the working directory if no repository marker
@@ -42,60 +79,22 @@ fs::path findProjectRoot()
 
 }  // namespace
 
+// --- construction ------------------------------------------------------------
+
 ExcludeManager::ExcludeManager(fs::path file_path)
     : file_path_(std::move(file_path))
 {
 }
 
-std::string ExcludeManager::trim(const std::string& text)
-{
-    const std::string_view view = text;
-    const std::size_t start = view.find_first_not_of(" \t\r\n");
-    if (start == std::string_view::npos) {
-        return {};
-    }
-    const std::size_t end = view.find_last_not_of(" \t\r\n");
-    return std::string{view.substr(start, end - start + 1)};
-}
-
-fs::path ExcludeManager::normalize(const fs::path& path)
-{
-    std::error_code error;
-    fs::path normalized = fs::weakly_canonical(path, error);
-    if (error) {
-        normalized = path.lexically_normal();
-    }
-    return normalized;
-}
-
-bool ExcludeManager::isUnderPrefix(
-    std::string_view path,
-    std::string_view prefix)
-{
-    if (path == prefix) {
-        return true;
-    }
-    return path.size() > prefix.size() &&
-           path.starts_with(prefix) &&
-           path[prefix.size()] == '/';
-}
-
-void ExcludeManager::addExact(const fs::path& path, bool internal)
-{
-    const std::string key = normalize(path).generic_string();
-    exact_.insert(key);
-    if (internal) {
-        internal_.insert(key);
-    }
-}
+// --- loading -----------------------------------------------------------------
 
 bool ExcludeManager::load()
 {
-    exact_.clear();
+    excluded_.clear();
     internal_.clear();
 
     for (const std::string& system_path : kSystemExcluded) {
-        exact_.insert(system_path);
+        excluded_.insert(system_path);
     }
 
     std::ifstream file(file_path_);
@@ -115,11 +114,13 @@ bool ExcludeManager::load()
             continue;
         }
 
-        addExact(path, false);
+        addExcludedPath(path, false);
     }
 
     return true;
 }
+
+// --- internal excludes -------------------------------------------------------
 
 void ExcludeManager::excludeProjectRoot()
 {
@@ -129,26 +130,27 @@ void ExcludeManager::excludeProjectRoot()
     }
 
     clearInternalExcludedPaths();
-    addInternalExcludedPath(root);
+    addExcludedPath(root, true);
+}
+
+void ExcludeManager::addExcludedPath(const fs::path& path, bool internal)
+{
+    const std::string key = normalizePath(path);
+    excluded_.insert(key);
+    if (internal) {
+        internal_.insert(key);
+    }
 }
 
 void ExcludeManager::clearInternalExcludedPaths()
 {
     for (const std::string& key : internal_) {
-        exact_.erase(key);
+        excluded_.erase(key);
     }
     internal_.clear();
 }
 
-void ExcludeManager::addInternalExcludedPath(const fs::path& path)
-{
-    addExact(path, true);
-}
-
-bool ExcludeManager::contains(const fs::path& path) const
-{
-    return exact_.contains(normalize(path).generic_string());
-}
+// --- queries -----------------------------------------------------------------
 
 bool ExcludeManager::shouldSkip(const fs::path& path) const
 {
@@ -161,16 +163,16 @@ bool ExcludeManager::shouldSkip(const fs::path& path) const
         return true;
     }
 
-    // Exact exclude only — parents already passed DFS exclusion.
-    return contains(path);
+    // Exact match only — parents already passed DFS exclusion.
+    return excluded_.contains(normalizePath(path));
 }
 
-bool ExcludeManager::isScanRootExcluded(const fs::path& root) const
+bool ExcludeManager::isRootInsideExcludedPath(const fs::path& root) const
 {
-    const std::string key = normalize(root).generic_string();
+    const std::string normalized_root = normalizePath(root);
 
-    for (const std::string& prefix : exact_) {
-        if (isUnderPrefix(key, prefix)) {
+    for (const std::string& excluded : excluded_) {
+        if (isSameOrDescendant(normalized_root, excluded)) {
             return true;
         }
     }
