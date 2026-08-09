@@ -15,6 +15,7 @@ OBJECTS = \
 	SegfaultHandler \
 	Logger \
 	FileTreeWalker \
+	ResumePathFilter \
 	ThreadPool \
 	ResumeManager \
 	SqliteCacheManager \
@@ -54,6 +55,7 @@ $(eval $(call COMPILE,Application,Application/Application.cpp))
 $(eval $(call COMPILE,SegfaultHandler,CrashHandler/SegfaultHandler.cpp))
 $(eval $(call COMPILE,Logger,Logger/Logger.cpp))
 $(eval $(call COMPILE,FileTreeWalker,Scan/FileTreeWalker.cpp))
+$(eval $(call COMPILE,ResumePathFilter,Scan/ResumePathFilter.cpp))
 $(eval $(call COMPILE,ThreadPool,ThreadPool/ThreadPool.cpp))
 $(eval $(call COMPILE,ResumeManager,Resume/ResumeManager.cpp))
 $(eval $(call COMPILE,SqliteCacheManager,Cache/SqliteCacheManager.cpp))

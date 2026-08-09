@@ -1,13 +1,15 @@
 #include "Scan/FileTreeWalker.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <system_error>
 
 namespace fs = std::filesystem;
 
 FileTreeWalker::FileTreeWalker(Logger& logger, const ExcludeManager& exclude)
     : logger_(logger),
-      exclude_(exclude)
+      exclude_(exclude),
+      file_info_builder_(logger)
 {
 }
 
@@ -34,7 +36,7 @@ bool FileTreeWalker::walk(
             return false;
         }
         FileInfo info;
-        if (!makeFileInfo(root, fs::directory_entry(root), info)) {
+        if (!file_info_builder_.build(root, fs::directory_entry(root), info)) {
             return true;
         }
         return on_file(info);
@@ -44,17 +46,14 @@ bool FileTreeWalker::walk(
         return false;
     }
 
-    std::vector<std::string> parts;
-    for (const fs::path& part : resume_from) {
-        parts.push_back(part.generic_string());
-    }
-    return walkDirectory(root, root, parts, 0, on_file);
+    const ResumePathFilter resume_filter(resume_from);
+    return walkDirectory(root, root, resume_filter, 0, on_file);
 }
 
 bool FileTreeWalker::walkDirectory(
     const fs::path& root,
     const fs::path& directory,
-    const std::vector<std::string>& resume_parts,
+    const ResumePathFilter& resume_filter,
     std::size_t depth,
     const FileCallback& on_file) const
 {
@@ -67,73 +66,85 @@ bool FileTreeWalker::walkDirectory(
         return true;
     }
 
-    const std::string* target =
-        depth < resume_parts.size() ? &resume_parts[depth] : nullptr;
-
     for (const fs::directory_entry& entry : children) {
-        const fs::path path = entry.path();
-        if (exclude_.shouldSkip(path)) {
-            continue;
-        }
-
-        const std::string name = path.filename().generic_string();
-        if (target && name < *target) {
-            continue;
-        }
-
-        std::error_code error;
-        if (target && name == *target && depth + 1 < resume_parts.size()) {
-            if (entry.is_directory(error) && !error &&
-                !walkDirectory(root, path, resume_parts, depth + 1, on_file)) {
-                return false;
-            }
-            continue;
-        }
-
-        if (entry.is_directory(error)) {
-            if (!error && !walkDirectory(root, path, {}, 0, on_file)) {
-                return false;
-            }
-        } else if (entry.is_regular_file(error) && !error) {
-            FileInfo info;
-            if (!makeFileInfo(root, entry, info)) {
-                continue;
-            }
-            if (!on_file(info)) {
-                return false;
-            }
+        if (!visitEntry(root, entry, resume_filter, depth, on_file)) {
+            return false;
         }
     }
+
     return true;
 }
 
-bool FileTreeWalker::makeFileInfo(
+bool FileTreeWalker::visitEntry(
     const fs::path& root,
     const fs::directory_entry& entry,
-    FileInfo& info) const
+    const ResumePathFilter& resume_filter,
+    std::size_t depth,
+    const FileCallback& on_file) const
+{
+    const fs::path path = entry.path();
+
+    if (exclude_.shouldSkip(path)) {
+        return true;
+    }
+
+    const ResumeDecision decision =
+        resume_filter.decide(path.filename().generic_string(), depth);
+
+    switch (decision) {
+        case ResumeDecision::Skip:
+            return true;
+        case ResumeDecision::FollowPath:
+            return followResumePath(root, entry, resume_filter, depth, on_file);
+        case ResumeDecision::ScanNormally:
+            return scanEntry(root, entry, on_file);
+    }
+
+    return true;
+}
+
+bool FileTreeWalker::followResumePath(
+    const fs::path& root,
+    const fs::directory_entry& entry,
+    const ResumePathFilter& resume_filter,
+    std::size_t depth,
+    const FileCallback& on_file) const
 {
     std::error_code error;
 
-    // Reuses the stat the directory_entry already cached during the DFS, so
-    // this does not issue new filesystem calls in the common case.
-    const std::uintmax_t size = entry.file_size(error);
-    if (error) {
-        logger_.warning("Could not read file size: " + entry.path().string());
-        return false;
+    if (!entry.is_directory(error) || error) {
+        return true;
     }
 
-    const fs::file_time_type write_time = entry.last_write_time(error);
-    if (error) {
-        logger_.warning("Could not read file time: " + entry.path().string());
-        return false;
+    return walkDirectory(root, entry.path(), resume_filter, depth + 1, on_file);
+}
+
+bool FileTreeWalker::scanEntry(
+    const fs::path& root,
+    const fs::directory_entry& entry,
+    const FileCallback& on_file) const
+{
+    std::error_code error;
+
+    if (entry.is_directory(error)) {
+        if (error) {
+            return true;
+        }
+        // A fresh subtree: no resume checkpoint applies from here down.
+        const ResumePathFilter no_resume;
+        return walkDirectory(root, entry.path(), no_resume, 0, on_file);
     }
 
-    info.path = entry.path();
-    info.relative_path = entry.path().lexically_relative(root);
-    info.size = size;
-    info.last_modified =
-        static_cast<std::int64_t>(write_time.time_since_epoch().count());
-    return true;
+    if (!entry.is_regular_file(error) || error) {
+        return true;
+    }
+
+    FileInfo info;
+    if (!file_info_builder_.build(root, entry, info)) {
+        return true;
+    }
+
+    return on_file(info);
 }
 
 bool FileTreeWalker::readSortedChildren(

@@ -3,6 +3,8 @@
 #include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
 #include "Scan/FileInfo.h"
+#include "Scan/FileInfoBuilder.h"
+#include "Scan/ResumePathFilter.h"
 
 #include <cstddef>
 #include <filesystem>
@@ -29,20 +31,38 @@ public:
 private:
     bool walkDirectory(const std::filesystem::path& root,
                        const std::filesystem::path& directory,
-                       const std::vector<std::string>& resume_parts,
+                       const ResumePathFilter& resume_filter,
                        std::size_t depth,
                        const FileCallback& on_file) const;
+
+    // One entry: skip it, follow it deeper along the resume path, or scan it
+    // normally — whichever the resume filter decides. Returns false only when
+    // on_file asks to stop the whole walk.
+    bool visitEntry(const std::filesystem::path& root,
+                    const std::filesystem::directory_entry& entry,
+                    const ResumePathFilter& resume_filter,
+                    std::size_t depth,
+                    const FileCallback& on_file) const;
+
+    // FollowPath: descend into the directory on the resume path, continuing to
+    // match the checkpoint one level deeper.
+    bool followResumePath(const std::filesystem::path& root,
+                          const std::filesystem::directory_entry& entry,
+                          const ResumePathFilter& resume_filter,
+                          std::size_t depth,
+                          const FileCallback& on_file) const;
+
+    // ScanNormally: recurse into a directory as a fresh subtree (no resume), or
+    // hand a regular file to on_file.
+    bool scanEntry(const std::filesystem::path& root,
+                   const std::filesystem::directory_entry& entry,
+                   const FileCallback& on_file) const;
+
     bool readSortedChildren(
         const std::filesystem::path& directory,
         std::vector<std::filesystem::directory_entry>& children) const;
 
-    // Builds a FileInfo from an entry already visited by the DFS, reusing the
-    // stat the directory_entry cached. Returns false if the metadata cannot be
-    // read (e.g. the file vanished mid-scan), in which case it is skipped.
-    bool makeFileInfo(const std::filesystem::path& root,
-                      const std::filesystem::directory_entry& entry,
-                      FileInfo& info) const;
-
     Logger& logger_;
     const ExcludeManager& exclude_;
+    FileInfoBuilder file_info_builder_;
 };
