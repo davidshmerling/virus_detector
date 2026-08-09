@@ -2,6 +2,9 @@
 build/
 av
 
+# Packaged Debian artifacts (.deb)
+dist/
+
 # Local scan test data (keep empty folder; ignore sample files)
 test_scan/*
 !test_scan/.gitkeep

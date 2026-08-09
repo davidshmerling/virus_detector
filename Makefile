@@ -75,8 +75,14 @@ $(eval $(call COMPILE,ScanPipeline,Scan/ScanPipeline.cpp))
 -include $(DEPS)
 
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET) dist
 
-.PHONY: all clean
+# Build a distributable Debian package (.deb) into dist/.
+# Override the version with: make deb VERSION=1.2.3
+VERSION ?= 0.1.0
+deb:
+	./packaging/build-deb.sh $(VERSION)
+
+.PHONY: all clean deb
 
 
