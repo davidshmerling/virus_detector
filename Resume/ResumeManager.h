@@ -46,9 +46,9 @@ private:
 
     bool save(const std::string& status);
 
-    // Writes a checkpoint only once every kCheckpointInterval calls, so we do
-    // not hit the disk for every single file. State transitions still call
-    // save() directly to guarantee they are persisted.
+    // Writes a checkpoint only once every kCheckpointInterval completed files,
+    // so we do not hit the disk for every single finish. State transitions still
+    // call save() directly to guarantee they are persisted.
     bool maybeSave(const std::string& status);
 
     static constexpr int kCheckpointInterval = 200;

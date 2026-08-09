@@ -44,7 +44,8 @@ bool ResumeManager::addFile(const fs::path& file)
     unfinished_files_.insert(file.generic_string());
     next_file_ = *unfinished_files_.begin();
 
-    return maybeSave("running");
+    // Discovery alone is not progress — checkpoints advance on fileCompleted.
+    return true;
 }
 
 bool ResumeManager::fileCompleted(const fs::path& file)
