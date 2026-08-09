@@ -4,23 +4,18 @@
 #include <string>
 #include <unordered_set>
 
-// The set of paths a scan must not touch: built-in system directories, the
-// user's config-file exclusions, and the scanner's own project tree. This class
-// only *owns* the set and knows how to build it. Deciding whether a given path
-// is excluded is not its job — that belongs to PathFilter (per DFS node) and
-// ScanRootGuard (the scan root, once).
+// The set of paths a scan must not touch: built-in defaults (system dirs and
+// the scanner's own install/dev trees) plus the user's config-file exclusions.
+// This class only *owns* the set and knows how to build it. Deciding whether a
+// given path is excluded is not its job — that belongs to PathFilter (per DFS
+// node) and ScanRootGuard (the scan root, once).
 class ExcludeSet {
 public:
     explicit ExcludeSet(
         std::filesystem::path file_path = "config/exclude.txt");
 
-    // Loads the built-in system excludes plus the user's config file.
+    // Loads the built-in defaults plus the user's config file.
     bool load();
-
-    // Adds the scanner's own project tree (the directory holding .git, falling
-    // back to the working directory) so a full-system scan never scans or
-    // quarantines its own config, runtime data, or binaries.
-    void excludeProjectRoot();
 
     // The normalized excluded paths, for the filters to query.
     const std::unordered_set<std::string>& excludedPaths() const

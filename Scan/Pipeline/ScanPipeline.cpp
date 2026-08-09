@@ -50,7 +50,6 @@ void ScanPipeline::scan(const fs::path& root)
 
     // 3. Load exclude rules, the persisted cache, and quarantine state.
     exclude_set_.load();
-    exclude_set_.excludeProjectRoot();
     cache_manager_.load();
     quarantine_manager_.load();
 

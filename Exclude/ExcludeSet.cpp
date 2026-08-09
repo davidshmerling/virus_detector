@@ -3,23 +3,24 @@
 #include <fstream>
 #include <string>
 #include <string_view>
-#include <system_error>
+#include <vector>
 
 namespace fs = std::filesystem;
 
 namespace {
 
-// --- constants ---------------------------------------------------------------
-
-const std::unordered_set<std::string> kSystemExcluded = {
+// Paths the product must never scan: OS virtual/temp trees, plus the scanner's
+// own development and installed layouts. User excludes still come from
+// exclude.txt on top of these.
+const std::vector<fs::path> kDefaultExcluded = {
     "/proc",
     "/sys",
     "/dev",
     "/run",
     "/tmp",
+    "/workspace/virus_detector",
+    "/opt/virus-detector",
 };
-
-// --- path helpers ------------------------------------------------------------
 
 std::string trim(const std::string& text)
 {
@@ -32,33 +33,7 @@ std::string trim(const std::string& text)
     return std::string{view.substr(start, end - start + 1)};
 }
 
-// Walks up from the working directory to the project root (the directory
-// holding .git), falling back to the working directory if no repository marker
-// is found.
-fs::path findProjectRoot()
-{
-    std::error_code error;
-    const fs::path base = fs::current_path(error);
-    if (error) {
-        return {};
-    }
-
-    for (fs::path dir = base; !dir.empty(); dir = dir.parent_path()) {
-        std::error_code exists_error;
-        if (fs::exists(dir / ".git", exists_error) && !exists_error) {
-            return dir;
-        }
-        if (dir == dir.root_path()) {
-            break;
-        }
-    }
-
-    return base;
-}
-
 }  // namespace
-
-// --- construction ------------------------------------------------------------
 
 ExcludeSet::ExcludeSet(fs::path file_path)
     : file_path_(std::move(file_path))
@@ -75,14 +50,12 @@ std::string ExcludeSet::normalize(const fs::path& path)
     return normalized.generic_string();
 }
 
-// --- loading -----------------------------------------------------------------
-
 bool ExcludeSet::load()
 {
     excluded_paths_.clear();
 
-    for (const std::string& system_path : kSystemExcluded) {
-        excluded_paths_.insert(system_path);
+    for (const fs::path& path : kDefaultExcluded) {
+        excluded_paths_.insert(normalize(path));
     }
 
     std::ifstream file(file_path_);
@@ -104,14 +77,4 @@ bool ExcludeSet::load()
     }
 
     return true;
-}
-
-void ExcludeSet::excludeProjectRoot()
-{
-    const fs::path root = findProjectRoot();
-    if (root.empty()) {
-        return;
-    }
-
-    excluded_paths_.insert(normalize(root));
 }

@@ -39,7 +39,10 @@ RUN_ID="$(cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-')"
 [[ -n "$RUN_ID" ]] || RUN_ID="$(date +%s%N)$$"
 SIG="__AV_REAL_SCAN_ONETIME_${RUN_ID}__"
 printf '%s\n' "$SIG" > "$REAL_DIR/config/signatures.txt"
-printf '# no user excludes for the real scan\n' > "$REAL_DIR/config/exclude.txt"
+# Exclude only this test's private runtime/config tree so quarantine copies and
+# logs (which contain the one-time signature after the first hit) are not
+# re-scanned as extra "malicious" files. The machine itself stays unrestricted.
+printf '%s\n' "$REAL_DIR" > "$REAL_DIR/config/exclude.txt"
 
 # Plant one malicious file in a real, non-excluded location.
 EVIL_DIR="$DATA/real_scanall"
