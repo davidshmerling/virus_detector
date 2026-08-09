@@ -2,13 +2,14 @@
 
 #include "Cache/CacheEntry.h"
 
+#include <SQLiteCpp/Database.h>
+
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-struct sqlite3;
 
 // SQLite persistence only — no threads, no validity logic.
 class SqliteCacheManager {
@@ -21,30 +22,21 @@ public:
 
     bool open();
 
-    // Loads every row at generation >= min_generation straight into a path-keyed
-    // map (reserved up front from the row count so it never rehashes during the
-    // load).
-    std::unordered_map<std::string, CacheEntry> loadAll(
-        std::uint64_t min_generation);
+    // Loads every row straight into a path-keyed map (reserved up front from the
+    // row count so it never rehashes during the load).
+    std::unordered_map<std::string, CacheEntry> loadAll();
 
     bool upsertBatch(const std::vector<CacheEntry>& entries);
-    bool removeBatch(const std::vector<std::string>& paths);
 
-    // Generation bookkeeping. The last completed generation persists across runs
-    // so the next scan knows which entries are stale.
-    std::uint64_t loadLastCompletedGeneration();
-    bool saveLastCompletedGeneration(std::uint64_t generation);
+    // After a successful scan-all: drop every entry not stamped with the just
+    // finished generation (files that scan never saw).
+    bool cleanOldGenerations(std::uint64_t current_generation);
 
-    // Drops every entry left behind at a generation older than the given one.
-    bool deleteOlderThan(std::uint64_t generation);
-
-    // Wipes all entries and generation state (used on the theoretical counter
-    // overflow, to restart cleanly from generation 0).
+    // Wipes all cache entries (used on the theoretical counter overflow, so the
+    // next scan can restart cleanly from generation 0).
     bool clearAll();
 
 private:
-    bool exec(const char* sql) const;
-
     std::filesystem::path database_path_;
-    sqlite3* database_ = nullptr;
+    std::unique_ptr<SQLite::Database> database_;
 };

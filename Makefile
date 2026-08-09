@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++23 -O2 -g -I. -Iexternal
+CXXFLAGS = -Wall -Wextra -std=c++23 -O2 -g -I. -Iexternal -Iexternal/SQLiteCpp/include
 LDFLAGS = -pthread -lsqlite3
 
 BUILD_DIR = build
@@ -21,7 +21,6 @@ OBJECTS = \
 	ResumeManager \
 	SqliteCacheManager \
 	CacheWriter \
-	CacheCleaner \
 	CacheManager \
 	CommandParser \
 	ConsolePrinter \
@@ -36,7 +35,14 @@ OBJECTS = \
 	QuarantineRepository \
 	QuarantineManager \
 	PerformanceMonitor \
-	ScanPipeline
+	ScanPipeline \
+	SQLiteCpp_Backup \
+	SQLiteCpp_Column \
+	SQLiteCpp_Database \
+	SQLiteCpp_Exception \
+	SQLiteCpp_Savepoint \
+	SQLiteCpp_Statement \
+	SQLiteCpp_Transaction
 
 OBJS = $(addprefix $(OBJ_DIR)/,$(addsuffix .o,$(OBJECTS)))
 DEPS = $(addprefix $(DEP_DIR)/,$(addsuffix .d,$(OBJECTS)))
@@ -65,7 +71,6 @@ $(eval $(call COMPILE,ThreadPool,ThreadPool/ThreadPool.cpp))
 $(eval $(call COMPILE,ResumeManager,Resume/ResumeManager.cpp))
 $(eval $(call COMPILE,SqliteCacheManager,Cache/SqliteCacheManager.cpp))
 $(eval $(call COMPILE,CacheWriter,Cache/CacheWriter.cpp))
-$(eval $(call COMPILE,CacheCleaner,Cache/CacheCleaner.cpp))
 $(eval $(call COMPILE,CacheManager,Cache/CacheManager.cpp))
 $(eval $(call COMPILE,CommandParser,CLI/CommandParser.cpp))
 $(eval $(call COMPILE,ConsolePrinter,Console/ConsolePrinter.cpp))
@@ -81,6 +86,13 @@ $(eval $(call COMPILE,QuarantineRepository,Quarantine/QuarantineRepository.cpp))
 $(eval $(call COMPILE,QuarantineManager,Quarantine/QuarantineManager.cpp))
 $(eval $(call COMPILE,PerformanceMonitor,Performance/PerformanceMonitor.cpp))
 $(eval $(call COMPILE,ScanPipeline,Scan/Pipeline/ScanPipeline.cpp))
+$(eval $(call COMPILE,SQLiteCpp_Backup,external/SQLiteCpp/src/Backup.cpp))
+$(eval $(call COMPILE,SQLiteCpp_Column,external/SQLiteCpp/src/Column.cpp))
+$(eval $(call COMPILE,SQLiteCpp_Database,external/SQLiteCpp/src/Database.cpp))
+$(eval $(call COMPILE,SQLiteCpp_Exception,external/SQLiteCpp/src/Exception.cpp))
+$(eval $(call COMPILE,SQLiteCpp_Savepoint,external/SQLiteCpp/src/Savepoint.cpp))
+$(eval $(call COMPILE,SQLiteCpp_Statement,external/SQLiteCpp/src/Statement.cpp))
+$(eval $(call COMPILE,SQLiteCpp_Transaction,external/SQLiteCpp/src/Transaction.cpp))
 
 -include $(DEPS)
 
@@ -94,5 +106,3 @@ deb:
 	./packaging/build-deb.sh $(VERSION)
 
 .PHONY: all clean deb
-
-

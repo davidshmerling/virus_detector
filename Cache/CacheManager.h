@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Cache/CacheCleaner.h"
 #include "Cache/CacheEntry.h"
 #include "Cache/CacheWriter.h"
 #include "Cache/SqliteCacheManager.h"
@@ -32,16 +31,17 @@ public:
     // Records a fresh verdict. The entry is stamped with the current scan
     // generation, marking the file as seen by this scan.
     void update(CacheEntry entry);
-    void remove(const std::string& path);
-    void flush();
 
-    // Promotes the in-progress generation to "last completed". Call only after a
-    // scan finishes successfully; anything older than this becomes reclaimable on
-    // the next run. Must run after flush() so every stamped entry is durable
-    // before the generation is declared complete.
-    void commitGeneration();
+    // After a successful scan: drain leftover writes, and if this was a
+    // scan-all drop every entry not stamped with the current generation, then
+    // persist the generation. Partial path scans never prune (other trees must
+    // keep their cache entries).
+    void commitGeneration(bool full_system_scan);
 
 private:
+    std::uint64_t loadLastCompletedGeneration() const;
+    bool saveLastCompletedGeneration(std::uint64_t generation) const;
+
     Logger& logger_;
     mutable std::shared_mutex mutex_;
     std::unordered_map<std::string, CacheEntry> cache_entries_;
@@ -50,7 +50,10 @@ private:
     // always last_completed + 1. Set once by load() before any scanning starts.
     std::uint64_t current_generation_ = 0;
 
+    // One-line file next to the SQLite DB: the last successfully completed
+    // generation (e.g. runtime/cache/generation.txt).
+    std::filesystem::path generation_file_;
+
     SqliteCacheManager storage_;
-    CacheCleaner cleaner_;
     CacheWriter writer_;
 };

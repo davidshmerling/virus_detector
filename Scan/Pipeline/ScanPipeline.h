@@ -18,7 +18,7 @@ class ThreadPool;     // used only by reference when enqueuing scan tasks
 
 // Wires the whole scan pipeline together for one run:
 //   load signatures → build automaton → prepare resume → walk the tree →
-//   enqueue each file → workers scan → wait → flush.
+//   enqueue each file → workers scan → wait → commit cache generation.
 // It performs none of the heavy lifting itself (no chunk reading, no automaton
 // search, no DFS, no SQLite); it only connects the classes that do. Open this
 // one file to see what happens from the start of a scan to the end.

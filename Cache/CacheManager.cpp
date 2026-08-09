@@ -1,14 +1,19 @@
 #include "Cache/CacheManager.h"
 
 #include <cstdint>
+#include <fstream>
+#include <limits>
 #include <string>
+#include <system_error>
 #include <unordered_map>
 #include <utility>
 
-CacheManager::CacheManager(Logger& logger, std::filesystem::path database_path)
+namespace fs = std::filesystem;
+
+CacheManager::CacheManager(Logger& logger, fs::path database_path)
     : logger_(logger),
+      generation_file_(database_path.parent_path() / "generation.txt"),
       storage_(std::move(database_path)),
-      cleaner_(storage_),
       writer_(storage_)
 {
 }
@@ -20,20 +25,20 @@ bool CacheManager::load()
         return false;
     }
 
-    const std::uint64_t last_completed = storage_.loadLastCompletedGeneration();
+    std::uint64_t last_completed = loadLastCompletedGeneration();
 
-    // Drop stale entries first (and handle the overflow reset); the returned
-    // generation is what remains to load from.
-    const std::uint64_t load_from = cleaner_.pruneStale(last_completed);
+    // Theoretical overflow guard: wipe and restart from 0 rather than wrap.
+    if (last_completed == std::numeric_limits<std::uint64_t>::max()) {
+        storage_.clearAll();
+        last_completed = 0;
+        saveLastCompletedGeneration(0);
+    }
 
-    // Keep the last completed generation and any partial in-progress one (a scan
-    // that crashed mid-run), so a resumed scan still benefits from its cache.
-    std::unordered_map<std::string, CacheEntry> loaded =
-        storage_.loadAll(load_from);
+    std::unordered_map<std::string, CacheEntry> loaded = storage_.loadAll();
 
     std::unique_lock lock(mutex_);
     cache_entries_ = std::move(loaded);
-    current_generation_ = load_from + 1;
+    current_generation_ = last_completed + 1;
 
     logger_.info(
         "Cache loaded. Entries: " + std::to_string(cache_entries_.size()) +
@@ -71,23 +76,56 @@ void CacheManager::update(CacheEntry entry)
     writer_.submit(std::move(entry));
 }
 
-void CacheManager::remove(const std::string& path)
+void CacheManager::commitGeneration(bool full_system_scan)
 {
-    {
-        std::unique_lock lock(mutex_);
-        cache_entries_.erase(path);
+    // 1. Drain leftover upserts so every stamp is durable.
+    writer_.finish();
+
+    // 2. Only a completed scan-all may prune: anything still at an older
+    // generation was not seen anywhere on the machine.
+    if (full_system_scan) {
+        storage_.cleanOldGenerations(current_generation_);
     }
-    writer_.remove(path);
+
+    // 3. Record this generation as the last completed.
+    saveLastCompletedGeneration(current_generation_);
 }
 
-void CacheManager::flush()
+std::uint64_t CacheManager::loadLastCompletedGeneration() const
 {
-    writer_.flush();
+    std::ifstream file(generation_file_);
+    std::uint64_t generation = 0;
+    if (!(file >> generation)) {
+        return 0;
+    }
+    return generation;
 }
 
-void CacheManager::commitGeneration()
+bool CacheManager::saveLastCompletedGeneration(std::uint64_t generation) const
 {
-    // Every entry from this scan is durable (flush() ran first); declaring the
-    // generation complete lets the next run treat older entries as stale.
-    storage_.saveLastCompletedGeneration(current_generation_);
+    const fs::path directory = generation_file_.parent_path();
+    if (!directory.empty()) {
+        std::error_code error;
+        fs::create_directories(directory, error);
+    }
+
+    // Atomic write: temp + rename, same pattern as the resume checkpoint.
+    const fs::path temp_file = generation_file_.string() + ".tmp";
+    {
+        std::ofstream file(temp_file, std::ios::trunc);
+        if (!file) {
+            logger_.error("Could not save cache generation");
+            return false;
+        }
+        file << generation << '\n';
+    }
+
+    std::error_code error;
+    fs::rename(temp_file, generation_file_, error);
+    if (error) {
+        fs::remove(temp_file, error);
+        logger_.error("Could not save cache generation");
+        return false;
+    }
+    return true;
 }

@@ -86,14 +86,11 @@ void ScanPipeline::scan(const fs::path& root)
     // 8. Wait for all in-flight files to finish.
     pool.wait();
 
-    // 9. Persist the cache (the checkpoint is saved on every state change).
-    cache_manager_.flush();
-
-    // 10. The scan finished successfully: promote this generation to "last
-    // completed" so the next run can reclaim anything older. Reaching this point
-    // means no crash interrupted the run (a kill never gets here, so a partial
-    // scan never advances the generation).
-    cache_manager_.commitGeneration();
+    // 9. Persist leftover cache upserts; on scan-all, drop entries this run
+    // never saw; then promote the generation. Reaching here means no crash —
+    // a kill never gets here, so pruning never runs on an incomplete scan.
+    const bool full_system_scan = (root == "/");
+    cache_manager_.commitGeneration(full_system_scan);
 
     ConsolePrinter::printScanSummary(summary);
     logger_.info("Scan completed. " + summary.toLogLine());

@@ -1,12 +1,13 @@
 #include "Cache/CacheWriter.h"
 
 #include <utility>
+#include <vector>
 
 namespace {
 
-// Persist to SQLite once this many pending changes (upserts + removals) pile
-// up; a flush() call or shutdown persists earlier regardless.
-constexpr std::size_t kFlushThreshold = 100;
+// Write to SQLite once this many pending upserts pile up. Anything left under
+// the batch size is written when finish() stops the writer at end of scan.
+constexpr std::size_t kBatchSize = 100;
 
 }  // namespace
 
@@ -18,128 +19,65 @@ CacheWriter::CacheWriter(SqliteCacheManager& storage)
 
 CacheWriter::~CacheWriter()
 {
+    // Safety net if the scan never reached finish() (e.g. early abort).
+    finish();
+}
+
+void CacheWriter::submit(CacheEntry entry)
+{
+    bool should_wake = false;
+    {
+        std::scoped_lock lock(mutex_);
+        if (stop_) {
+            return;
+        }
+        upsert_queue_.push_back(std::move(entry));
+        if (upsert_queue_.size() >= kBatchSize) {
+            should_wake = true;
+        }
+    }
+    if (should_wake) {
+        cv_.notify_one();
+    }
+}
+
+void CacheWriter::finish()
+{
     {
         std::scoped_lock lock(mutex_);
         stop_ = true;
-        flush_requested_ = true;
     }
-    cv_.notify_all();
+    cv_.notify_one();
     if (thread_.joinable()) {
         thread_.join();
     }
 }
 
-void CacheWriter::submit(CacheEntry entry)
-{
-    {
-        std::scoped_lock lock(mutex_);
-        upsert_queue_.push_back(std::move(entry));
-    }
-    cv_.notify_one();
-}
-
-void CacheWriter::remove(std::string path)
-{
-    {
-        std::scoped_lock lock(mutex_);
-        remove_queue_.push_back(std::move(path));
-    }
-    cv_.notify_one();
-}
-
-void CacheWriter::flush()
-{
-    {
-        std::scoped_lock lock(mutex_);
-        flush_requested_ = true;
-    }
-    cv_.notify_one();
-
-    std::unique_lock lock(mutex_);
-    drain_cv_.wait(lock, [this]() {
-        return !flush_requested_ &&
-               !busy_ &&
-               upsert_queue_.empty() &&
-               remove_queue_.empty();
-    });
-}
-
-void CacheWriter::persistLocked(
-    std::unordered_map<std::string, CacheEntry>& dirty,
-    std::vector<std::string>& removals)
-{
-    if (!removals.empty()) {
-        (void)storage_.removeBatch(removals);
-        removals.clear();
-    }
-
-    if (!dirty.empty()) {
-        std::vector<CacheEntry> batch;
-        batch.reserve(dirty.size());
-        for (auto& [path, entry] : dirty) {
-            (void)path;
-            batch.push_back(std::move(entry));
-        }
-        dirty.clear();
-        (void)storage_.upsertBatch(batch);
-    }
-}
-
 void CacheWriter::run()
 {
-    std::unordered_map<std::string, CacheEntry> dirty;
-    std::vector<std::string> removals;
-
     while (true) {
         std::deque<CacheEntry> upserts;
-        std::deque<std::string> removes;
         bool stop = false;
-        bool flush_now = false;
 
         {
             std::unique_lock lock(mutex_);
             cv_.wait(lock, [this]() {
-                return stop_ ||
-                       flush_requested_ ||
-                       !upsert_queue_.empty() ||
-                       !remove_queue_.empty();
+                return stop_ || upsert_queue_.size() >= kBatchSize;
             });
 
             stop = stop_;
-            flush_now = flush_requested_;
             upserts.swap(upsert_queue_);
-            removes.swap(remove_queue_);
-            busy_ = true;
         }
 
-        for (CacheEntry& entry : upserts) {
-            dirty[entry.path] = std::move(entry);
-        }
-        for (std::string& path : removes) {
-            dirty.erase(path);
-            removals.push_back(std::move(path));
-        }
-
-        const bool should_persist =
-            dirty.size() + removals.size() >= kFlushThreshold ||
-            flush_now ||
-            stop;
-
-        if (should_persist) {
-            persistLocked(dirty, removals);
+        // One update per path per scan — no dedup map needed.
+        if (!upserts.empty()) {
+            std::vector<CacheEntry> batch(
+                std::make_move_iterator(upserts.begin()),
+                std::make_move_iterator(upserts.end()));
+            (void)storage_.upsertBatch(batch);
         }
 
-        {
-            std::scoped_lock lock(mutex_);
-            busy_ = false;
-            if (flush_now && upsert_queue_.empty() && remove_queue_.empty()) {
-                flush_requested_ = false;
-            }
-            drain_cv_.notify_all();
-        }
-
-        if (stop && upserts.empty() && removes.empty()) {
-            persistLocked(dirty, removals);
+        if (stop) {
             return;
         }
     }

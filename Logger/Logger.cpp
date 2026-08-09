@@ -77,14 +77,9 @@ void Logger::write(LogLevel level, const std::string& message)
 std::string Logger::levelToString(LogLevel level)
 {
     switch (level) {
-        case LogLevel::Info:
-            return "INFO";
-
-        case LogLevel::Warning:
-            return "WARNING";
-
-        case LogLevel::Error:
-            return "ERROR";
+        case LogLevel::Info:    return "INFO";
+        case LogLevel::Warning: return "WARNING";
+        case LogLevel::Error:   return "ERROR";
     }
 
     return "UNKNOWN";
@@ -111,19 +106,9 @@ std::string Logger::makeFileName()
 
     const std::tm local_time = israelLocalTime(time);
 
-    // Invert calendar fields so default A→Z name sort puts newest first.
-    // Leading "0-" keeps new logs above legacy "2026-..." names.
-    // Example for 2026-08-05_15-31-29_295 → 0-7973-91-94_84-68-70_704.log
     std::ostringstream stream;
-    stream << "0-"
-           << std::setfill('0')
-           << std::setw(4) << (9999 - (local_time.tm_year + 1900)) << '-'
-           << std::setw(2) << (99 - (local_time.tm_mon + 1)) << '-'
-           << std::setw(2) << (99 - local_time.tm_mday) << '_'
-           << std::setw(2) << (99 - local_time.tm_hour) << '-'
-           << std::setw(2) << (99 - local_time.tm_min) << '-'
-           << std::setw(2) << (99 - local_time.tm_sec) << '_'
-           << std::setw(3) << (999 - milliseconds.count())
+    stream << std::put_time(&local_time, "%Y-%m-%d_%H-%M-%S") << '_'
+           << std::setfill('0') << std::setw(3) << milliseconds.count()
            << ".log";
     return stream.str();
 }
