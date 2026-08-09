@@ -2,6 +2,7 @@
 
 #include "Scan/Automaton/AutomatonBuilder.h"
 #include "Cache/CacheManager.h"
+#include "Scan/FileInfo.h"
 #include "Scan/ScanSummary.h"
 #include "Exclude/ExcludeManager.h"
 #include "Logger/Logger.h"
@@ -32,11 +33,12 @@ public:
 
 private:
     // Runs on a worker thread for one discovered file: cache lookup, scan on
-    // miss, cache update, and summary/resume bookkeeping.
+    // miss, cache update, and summary/resume bookkeeping. The file's size,
+    // last-modified time, and relative path already come from the walker inside
+    // FileInfo, so this does no extra filesystem calls before the cache lookup.
     void handleFile(
         const FileProcessor& processor,
-        const std::filesystem::path& file,
-        const std::filesystem::path& root,
+        const FileInfo& info,
         std::int64_t signatures_last_modified,
         ScanSummary& summary);
 

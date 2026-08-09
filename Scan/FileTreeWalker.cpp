@@ -30,7 +30,14 @@ bool FileTreeWalker::walk(
     }
 
     if (fs::is_regular_file(root, error)) {
-        return !error && on_file(root);
+        if (error) {
+            return false;
+        }
+        FileInfo info;
+        if (!makeFileInfo(root, fs::directory_entry(root), info)) {
+            return true;
+        }
+        return on_file(info);
     }
     if (!fs::is_directory(root, error) || error) {
         logger_.warning("Open directory failed for " + root.string());
@@ -41,10 +48,11 @@ bool FileTreeWalker::walk(
     for (const fs::path& part : resume_from) {
         parts.push_back(part.generic_string());
     }
-    return walkDirectory(root, parts, 0, on_file);
+    return walkDirectory(root, root, parts, 0, on_file);
 }
 
 bool FileTreeWalker::walkDirectory(
+    const fs::path& root,
     const fs::path& directory,
     const std::vector<std::string>& resume_parts,
     std::size_t depth,
@@ -76,22 +84,55 @@ bool FileTreeWalker::walkDirectory(
         std::error_code error;
         if (target && name == *target && depth + 1 < resume_parts.size()) {
             if (entry.is_directory(error) && !error &&
-                !walkDirectory(path, resume_parts, depth + 1, on_file)) {
+                !walkDirectory(root, path, resume_parts, depth + 1, on_file)) {
                 return false;
             }
             continue;
         }
 
         if (entry.is_directory(error)) {
-            if (!error && !walkDirectory(path, {}, 0, on_file)) {
+            if (!error && !walkDirectory(root, path, {}, 0, on_file)) {
                 return false;
             }
         } else if (entry.is_regular_file(error) && !error) {
-            if (!on_file(path)) {
+            FileInfo info;
+            if (!makeFileInfo(root, entry, info)) {
+                continue;
+            }
+            if (!on_file(info)) {
                 return false;
             }
         }
     }
+    return true;
+}
+
+bool FileTreeWalker::makeFileInfo(
+    const fs::path& root,
+    const fs::directory_entry& entry,
+    FileInfo& info) const
+{
+    std::error_code error;
+
+    // Reuses the stat the directory_entry already cached during the DFS, so
+    // this does not issue new filesystem calls in the common case.
+    const std::uintmax_t size = entry.file_size(error);
+    if (error) {
+        logger_.warning("Could not read file size: " + entry.path().string());
+        return false;
+    }
+
+    const fs::file_time_type write_time = entry.last_write_time(error);
+    if (error) {
+        logger_.warning("Could not read file time: " + entry.path().string());
+        return false;
+    }
+
+    info.path = entry.path();
+    info.relative_path = entry.path().lexically_relative(root);
+    info.size = size;
+    info.last_modified =
+        static_cast<std::int64_t>(write_time.time_since_epoch().count());
     return true;
 }
 

@@ -77,12 +77,12 @@ void ScanPipeline::scan(const fs::path& root)
 
     // 6. Walk the tree; every discovered file becomes one pool task.
     FileTreeWalker walker(logger_, exclude_manager_);
-    walker.walk(root, resume_from, [&](const fs::path& file) {
+    walker.walk(root, resume_from, [&](const FileInfo& info) {
         ++summary.discovered;
-        resume_manager_.addFile(fs::relative(file, root));
+        resume_manager_.addFile(info.relative_path);
 
-        pool.enqueue([&, file]() {
-            handleFile(processor, file, root, signatures_last_modified, summary);
+        pool.enqueue([&, info]() {
+            handleFile(processor, info, signatures_last_modified, summary);
         });
         return true;
     });
@@ -102,28 +102,19 @@ void ScanPipeline::scan(const fs::path& root)
 
 void ScanPipeline::handleFile(
     const FileProcessor& processor,
-    const fs::path& file,
-    const fs::path& root,
+    const FileInfo& info,
     std::int64_t signatures_last_modified,
     ScanSummary& summary)
 {
-    const fs::path relative = fs::relative(file, root);
+    const fs::path& file = info.path;
+    const fs::path& relative = info.relative_path;
     const std::string key = file.generic_string();
 
-    std::error_code error;
-    const std::uintmax_t size = fs::file_size(file, error);
-    const fs::file_time_type write_time = fs::last_write_time(file, error);
-    if (error) {
-        ++summary.failed;
-        logger_.warning("Could not read file: " + file.string());
-        resume_manager_.fileCompleted(relative);
-        return;
-    }
-
+    // Size and last-modified time were already gathered by the walker; no
+    // file_size()/last_write_time() calls are needed here.
     FileMetadata metadata;
-    metadata.last_modified =
-        static_cast<std::int64_t>(write_time.time_since_epoch().count());
-    metadata.size = size;
+    metadata.last_modified = info.last_modified;
+    metadata.size = info.size;
     metadata.signatures_last_modified = signatures_last_modified;
 
     // Cache hit: file and signatures unchanged since last scan — reuse verdict.

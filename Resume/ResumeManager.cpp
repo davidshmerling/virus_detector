@@ -44,7 +44,7 @@ bool ResumeManager::addFile(const fs::path& file)
     unfinished_files_.insert(file.generic_string());
     next_file_ = *unfinished_files_.begin();
 
-    return save("running");
+    return maybeSave("running");
 }
 
 bool ResumeManager::fileCompleted(const fs::path& file)
@@ -63,7 +63,7 @@ bool ResumeManager::fileCompleted(const fs::path& file)
     }
 
     next_file_ = *unfinished_files_.begin();
-    return save("running");
+    return maybeSave("running");
 }
 
 bool ResumeManager::discoveryFinished()
@@ -127,5 +127,15 @@ bool ResumeManager::save(const std::string& status)
          << status << '\n'
          << next_file_.generic_string() << '\n';
 
+    since_last_save_ = 0;
     return true;
+}
+
+bool ResumeManager::maybeSave(const std::string& status)
+{
+    if (++since_last_save_ < kCheckpointInterval) {
+        return true;
+    }
+
+    return save(status);
 }
