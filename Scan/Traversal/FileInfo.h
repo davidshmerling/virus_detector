@@ -16,16 +16,16 @@ struct FileInfo {
     std::int64_t last_modified = 0;
 };
 
-// Builds a FileInfo from a directory_entry the DFS has already visited, reusing
-// the stat the entry cached (size + last-modified time) and computing the path
-// relative to the scan root. This keeps the "what do we know about this file"
-// concern out of the walker, which only has to walk.
+// Builds a FileInfo from a directory_entry the DFS has already visited,
+// reusing the stat the entry cached (size and last-modified time) and
+// computing the path relative to the scan root. Keeps the "what do we know
+// about this file" concern out of the walker, which only has to walk.
 class FileInfoBuilder {
 public:
     explicit FileInfoBuilder(Logger& logger);
 
-    // Fills info from entry. Returns false if the metadata cannot be read
-    // (e.g. the file vanished mid-scan), so the caller can skip the file.
+    // Fills `info` from `entry`. Returns false if the metadata cannot be read
+    // (for example, the file vanished mid-scan), so the caller can skip it.
     bool build(const std::filesystem::path& root,
                const std::filesystem::directory_entry& entry,
                FileInfo& info) const;

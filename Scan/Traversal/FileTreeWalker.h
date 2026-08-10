@@ -2,7 +2,7 @@
 
 #include "Exclude/ExcludeSet.h"
 #include "Exclude/PathFilter.h"
-#include "Exclude/ScanRootGuard.h"
+#include "Exclude/ScanRootValidator.h"
 #include "Logger/Logger.h"
 #include "Resume/ResumePathFilter.h"
 #include "Scan/Traversal/FileInfo.h"
@@ -13,7 +13,8 @@
 #include <string>
 #include <vector>
 
-// Sorted DFS: exclude (exact), resume, hand each regular file to on_file.
+// Walks a directory tree with a sorted DFS. Applies exclude rules (exact match)
+// and resume decisions, then hands each regular file to `file_handler`.
 // For every regular file it collects size and last-modified time from the
 // directory_entry's already-cached stat, so the worker never has to touch the
 // filesystem again just to read that metadata.
@@ -23,49 +24,32 @@ public:
 
     FileTreeWalker(Logger& logger, const ExcludeSet& exclude);
 
-    // Empty resume_from → full walk from root.
-    // Checks the root once via ScanRootGuard, then the DFS uses PathFilter per
-    // node.
+    // Walks from `root`. An empty `resume_from` means a full walk; otherwise
+    // the DFS resumes from that checkpoint. Validates the root once via
+    // ScanRootValidator, then uses PathFilter per node. Returns false if the
+    // walk must abort (for example, an inaccessible root).
     bool walk(const std::filesystem::path& root,
               const std::filesystem::path& resume_from,
-              const FileCallback& on_file) const;
+              const FileCallback& file_handler) const;
 
 private:
+    // Processes one DFS level: skip, continue toward the resume point, or
+    // traverse normally, then recurse into directories or hand regular files
+    // to `file_handler`.
     bool walkDirectory(const std::filesystem::path& root,
                        const std::filesystem::path& directory,
                        const ResumePathFilter& resume_filter,
                        std::size_t depth,
-                       const FileCallback& on_file) const;
+                       const FileCallback& file_handler) const;
 
-    // One entry: skip it, follow it deeper along the resume path, or scan it
-    // normally — whichever the resume filter decides. Returns false only when
-    // on_file asks to stop the whole walk.
-    bool visitEntry(const std::filesystem::path& root,
-                    const std::filesystem::directory_entry& entry,
-                    const ResumePathFilter& resume_filter,
-                    std::size_t depth,
-                    const FileCallback& on_file) const;
-
-    // FollowPath: descend into the directory on the resume path, continuing to
-    // match the checkpoint one level deeper.
-    bool followResumePath(const std::filesystem::path& root,
-                          const std::filesystem::directory_entry& entry,
-                          const ResumePathFilter& resume_filter,
-                          std::size_t depth,
-                          const FileCallback& on_file) const;
-
-    // ScanNormally: recurse into a directory as a fresh subtree (no resume), or
-    // hand a regular file to on_file.
-    bool scanEntry(const std::filesystem::path& root,
-                   const std::filesystem::directory_entry& entry,
-                   const FileCallback& on_file) const;
-
+    // Fills `children` with the directory's entries sorted by filename.
+    // Returns false if the directory cannot be opened.
     bool readSortedChildren(
         const std::filesystem::path& directory,
         std::vector<std::filesystem::directory_entry>& children) const;
 
     Logger& logger_;
     PathFilter path_filter_;
-    ScanRootGuard root_guard_;
+    ScanRootValidator scan_root_validator_;
     FileInfoBuilder file_info_builder_;
 };

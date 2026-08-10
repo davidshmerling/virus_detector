@@ -1,8 +1,8 @@
 #!/bin/bash
-# REAL whole-machine scan-all. Unlike test_14/test_15, this does NOT restrict
-# the exclude list, so `scan-all` genuinely walks "/" (tens of thousands of
-# files) with only the built-in system excludes (/proc /sys /dev /run /tmp) and
-# the scanner's self-exclusion of its own working directory.
+# REAL whole-machine scan-all. Does NOT restrict the exclude list, so
+# `scan-all` genuinely walks "/" (tens of thousands of files) with only the
+# built-in system excludes (/proc /sys /dev /run /tmp) and the scanner's
+# self-exclusion of its own working directory.
 #
 # It runs in its OWN private runtime/config directory ($REAL_DIR), completely
 # separate from the shared sandbox, so it can be part of test_main.sh without

@@ -44,7 +44,7 @@ bool ResumeManager::addFile(const fs::path& file)
     unfinished_files_.insert(file.generic_string());
     next_file_ = *unfinished_files_.begin();
 
-    // Discovery alone is not progress — checkpoints advance on fileCompleted.
+    // Discovery alone is not progress; checkpoints advance on fileCompleted.
     return true;
 }
 
@@ -119,7 +119,7 @@ bool ResumeManager::save(const std::string& status)
 
     // Write to a temp file, then rename into place. rename is atomic on the
     // same filesystem, so an interrupted save leaves the previous checkpoint
-    // intact instead of a half-written (truncated) one.
+    // intact instead of a half-written truncated file.
     const fs::path temp_file = checkpoint_file_.string() + ".tmp";
 
     {

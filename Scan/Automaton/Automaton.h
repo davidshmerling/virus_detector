@@ -5,15 +5,15 @@
 #include <vector>
 
 // One state in the Aho-Corasick automaton.
-// Alphabet is all bytes: 0-255 (good for binary files).
+// The alphabet is all bytes 0–255 (suitable for binary files).
 struct AutomatonNode {
-    // next[b] = next state for byte b, or -1 before build finishes.
+    // next[b] is the next state for byte b, or -1 before build finishes.
     std::array<int, 256> next{};
 
-    // Where to go when next[b] is missing (used while building).
+    // Failure link used when next[b] is missing (filled while building).
     int failure_link = 0;
 
-    // Signature indexes that end in this state (own + inherited).
+    // Signature indexes that end in this state (own matches plus inherited).
     std::vector<std::size_t> output;
 
     AutomatonNode() {
@@ -30,12 +30,14 @@ public:
     std::size_t nodeCount() const { return nodes_.size(); }
     std::size_t signatureCount() const { return signature_count_; }
 
-    // Every next[b] is filled after the build finishes.
+    // Returns the next state for `byte` from `state`. Every next[b] is filled
+    // after the build finishes.
     int step(int state, unsigned char byte) const
     {
         return nodes_[static_cast<std::size_t>(state)].next[byte];
     }
 
+    // Returns the signature indexes that match when arriving at `state`.
     const std::vector<std::size_t>& outputs(int state) const
     {
         return nodes_[static_cast<std::size_t>(state)].output;

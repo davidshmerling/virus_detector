@@ -11,7 +11,7 @@
 #     sudo apt install ./dist/virus-detector_<version>_<arch>.deb
 #
 # Installed layout:
-#     /usr/bin/av_scanner                        ← compiled binary
+#     /usr/bin/av                               ← compiled binary
 #     /opt/virus-detector/config/signatures.txt  ← signatures
 #     /opt/virus-detector/config/exclude.txt     ← exclusions
 #     /opt/virus-detector/runtime/               ← working dir
@@ -35,7 +35,7 @@ mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/bin" \
          "$STAGE/opt/virus-detector/runtime" \
          "$STAGE/lib/systemd/system"
 
-install -Dm755 av                    "$STAGE/usr/bin/av_scanner"
+install -Dm755 av                    "$STAGE/usr/bin/av"
 install -Dm644 config/signatures.txt "$STAGE/opt/virus-detector/config/signatures.txt"
 install -Dm644 config/exclude.txt    "$STAGE/opt/virus-detector/config/exclude.txt"
 
@@ -47,7 +47,7 @@ After=local-fs.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/virus-detector
-ExecStart=/usr/bin/av_scanner scan-all
+ExecStart=/usr/bin/av scan-all
 
 [Install]
 WantedBy=multi-user.target

@@ -74,7 +74,7 @@ bool QuarantineManager::quarantine(
     repository_.add(entry);
 
     if (!repository_.save()) {
-        // Roll back so the file is not lost with no record of it.
+        // Roll back the move so the file is not lost with no metadata record.
         file_ops_.moveIn(destination, file);
         repository_.removeById(id);
         logger_.error("Quarantine failed: could not save metadata");

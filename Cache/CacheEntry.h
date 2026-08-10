@@ -25,7 +25,7 @@ struct CacheEntry {
     FileMetadata metadata;
     FileVerdict verdict = FileVerdict::Clean;
 
-    // The scan generation that last saw this file. Every scan runs under one
+    // Scan generation that last saw this file. Every scan runs under one
     // monotonically increasing generation; an entry left behind at an older
     // generation means the file was not seen by the last completed scan and can
     // be dropped. Not part of file identity, so it is excluded from ==.

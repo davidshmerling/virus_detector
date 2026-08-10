@@ -23,9 +23,10 @@ void onSegmentationFault(int signal)
     _exit(128 + signal);
 }
 
-} // namespace
+}  // namespace
 
 void installSegfaultHandler()
 {
+    // Reports the fault with a backtrace on STDERR, then exits immediately.
     std::signal(SIGSEGV, onSegmentationFault);
 }

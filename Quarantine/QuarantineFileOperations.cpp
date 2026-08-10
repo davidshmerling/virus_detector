@@ -76,7 +76,7 @@ bool QuarantineFileOperations::moveFile(
         return true;
     }
 
-    // rename fails across filesystems: fall back to copy + delete.
+    // rename fails across filesystems; fall back to copy + delete.
     fs::copy_file(source, destination, fs::copy_options::none, error);
     if (error) {
         return false;

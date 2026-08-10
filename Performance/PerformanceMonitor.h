@@ -11,6 +11,7 @@
 // to the console. stop() is idempotent, so the RAII path never double-reports.
 class PerformanceMonitor {
 public:
+    // Starts timing immediately. Does not take ownership of `logger`.
     explicit PerformanceMonitor(
         Logger& logger,
         std::string label = "Total time");
@@ -19,11 +20,12 @@ public:
     PerformanceMonitor(const PerformanceMonitor&) = delete;
     PerformanceMonitor& operator=(const PerformanceMonitor&) = delete;
 
-    // Compute elapsed time, log it, and print it. Safe to call once; later
+    // Computes elapsed time, logs it, and prints it. Safe to call once; later
     // calls (including the destructor) are no-ops.
     void stop();
 
 private:
+    // Formats `elapsed` as a human-readable duration string.
     static std::string formatDuration(std::chrono::nanoseconds elapsed);
 
     Logger& logger_;

@@ -57,11 +57,11 @@ void CommandParser::printHelp() const
         << "Antivirus Scanner\n"
         << "\n"
         << "Usage:\n"
-        << "  av_scanner scan-all\n"
-        << "  av_scanner scan <path>\n"
-        << "  av_scanner restore <id>\n"
-        << "  av_scanner restore-all\n"
-        << "  av_scanner delete <id>\n"
-        << "  av_scanner q-list\n"
-        << "  av_scanner help\n";
+        << "  av scan-all\n"
+        << "  av scan <path>\n"
+        << "  av restore <id>\n"
+        << "  av restore-all\n"
+        << "  av delete <id>\n"
+        << "  av q-list\n"
+        << "  av help\n";
 }

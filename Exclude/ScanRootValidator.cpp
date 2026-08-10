@@ -1,4 +1,4 @@
-#include "Exclude/ScanRootGuard.h"
+#include "Exclude/ScanRootValidator.h"
 
 #include "Exclude/ExcludeSet.h"
 
@@ -9,7 +9,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// True when path is prefix itself or a descendant of it (prefix/...).
+// Returns true when `path` is `prefix` itself or a descendant (prefix/...).
 bool isSameOrDescendant(std::string_view path, std::string_view prefix)
 {
     if (path == prefix) {
@@ -22,12 +22,12 @@ bool isSameOrDescendant(std::string_view path, std::string_view prefix)
 
 }  // namespace
 
-ScanRootGuard::ScanRootGuard(const ExcludeSet& exclude_set)
+ScanRootValidator::ScanRootValidator(const ExcludeSet& exclude_set)
     : exclude_set_(exclude_set)
 {
 }
 
-bool ScanRootGuard::isRootInsideExcludedPath(const fs::path& root) const
+bool ScanRootValidator::isRootInsideExcludedPath(const fs::path& root) const
 {
     const std::string normalized_root = ExcludeSet::normalize(root);
 

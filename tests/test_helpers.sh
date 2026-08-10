@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shared helpers for the av_scanner integration tests.
+# Shared helpers for the av integration tests.
 #
 # Isolation model
 # ---------------
@@ -26,7 +26,7 @@ RUNDIR="${AV_TEST_RUNDIR:-$PARENT/av_test_run}"
 # Dedicated test signatures written into the sandbox's config. They are
 # intentionally long, prefixed, and randomised so there is essentially no chance
 # they appear in any file we did not create ourselves -- important because
-# test_14 exercises `scan-all`, which walks a much larger tree.
+# test_16 exercises a real `scan-all` over "/".
 SIG_A="__AVT_SIG_ALPHA_e7c1a94b2d6f0853__NEVER_MATCH_ANYWHERE__"
 SIG_B="__AVT_SIG_BETA_f8d2b05c3e7a1964__NEVER_MATCH_ANYWHERE__"
 SIG_C="__AVT_SIG_GAMMA_09e3c16d4f8b2a75__NEVER_MATCH_ANYWHERE__"

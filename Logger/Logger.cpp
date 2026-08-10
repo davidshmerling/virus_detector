@@ -12,7 +12,7 @@ namespace {
 
 constexpr std::time_t kIsraelOffsetSeconds = 3 * 60 * 60;
 
-// Fixed Israel wall clock (UTC+3), independent of container TZ.
+// Fixed Israel wall clock (UTC+3), independent of the container TZ.
 std::tm israelLocalTime(std::time_t utc)
 {
     const std::time_t israel = utc + kIsraelOffsetSeconds;
@@ -30,7 +30,7 @@ Logger::Logger(const std::string& logs_directory)
 
     file_path_ = (fs::path(logs_directory) / makeFileName()).string();
 
-    // New file for this run (not append to an old one).
+    // Open a new file for this run; do not append to an old one.
     file_.open(file_path_, std::ios::out | std::ios::trunc);
 }
 

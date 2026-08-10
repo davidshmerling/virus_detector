@@ -58,6 +58,8 @@ bool SqliteCacheManager::open()
             database_path_.string(),
             SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE);
 
+        // WAL + NORMAL: concurrent readers during the async writer, without
+        // full synchronous durability on every commit.
         database_->exec("PRAGMA journal_mode=WAL;");
         database_->exec("PRAGMA synchronous=NORMAL;");
         database_->exec(kCreateTableSql);

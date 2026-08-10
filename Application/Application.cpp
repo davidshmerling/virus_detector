@@ -12,9 +12,9 @@
 
 int Application::run(int argc, char* argv[])
 {
-    // Times the whole run: the monitor reports (log + console) when it goes out
-    // of scope, after dispatch() has finished.
     Logger logger("runtime/logs");
+    // Reports elapsed wall time (log + console) when it goes out of scope,
+    // after dispatch() has finished.
     PerformanceMonitor monitor(logger, "Total run time");
 
     const Command command = parser_.parse(argc, argv);

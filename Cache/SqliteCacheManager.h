@@ -20,19 +20,21 @@ public:
     SqliteCacheManager(const SqliteCacheManager&) = delete;
     SqliteCacheManager& operator=(const SqliteCacheManager&) = delete;
 
+    // Opens (or creates) the database and ensures the schema exists.
     bool open();
 
-    // Loads every row straight into a path-keyed map (reserved up front from the
-    // row count so it never rehashes during the load).
+    // Loads every row into a path-keyed map (reserved up front from the row
+    // count so it never rehashes during the load).
     std::unordered_map<std::string, CacheEntry> loadAll();
 
+    // Upserts a batch of entries in one transaction.
     bool upsertBatch(const std::vector<CacheEntry>& entries);
 
-    // After a successful scan-all: drop every entry not stamped with the just
+    // After a successful scan-all: drops every entry not stamped with the just
     // finished generation (files that scan never saw).
     bool cleanOldGenerations(std::uint64_t current_generation);
 
-    // Wipes all cache entries (used on the theoretical counter overflow, so the
+    // Wipes all cache entries (used on theoretical counter overflow, so the
     // next scan can restart cleanly from generation 0).
     bool clearAll();
 

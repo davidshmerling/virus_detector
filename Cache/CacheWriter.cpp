@@ -19,7 +19,7 @@ CacheWriter::CacheWriter(SqliteCacheManager& storage)
 
 CacheWriter::~CacheWriter()
 {
-    // Safety net if the scan never reached finish() (e.g. early abort).
+    // Safety net if the scan never reached finish() (for example, early abort).
     finish();
 }
 
@@ -69,7 +69,7 @@ void CacheWriter::run()
             upserts.swap(upsert_queue_);
         }
 
-        // One update per path per scan — no dedup map needed.
+        // One update per path per scan, so no dedup map is needed.
         if (!upserts.empty()) {
             std::vector<CacheEntry> batch(
                 std::make_move_iterator(upserts.begin()),

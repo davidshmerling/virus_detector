@@ -26,7 +26,7 @@ OBJECTS = \
 	ConsolePrinter \
 	ExcludeSet \
 	PathFilter \
-	ScanRootGuard \
+	ScanRootValidator \
 	SignatureLoader \
 	AutomatonBuilder \
 	AutomatonScanner \
@@ -76,7 +76,7 @@ $(eval $(call COMPILE,CommandParser,CLI/CommandParser.cpp))
 $(eval $(call COMPILE,ConsolePrinter,Console/ConsolePrinter.cpp))
 $(eval $(call COMPILE,ExcludeSet,Exclude/ExcludeSet.cpp))
 $(eval $(call COMPILE,PathFilter,Exclude/PathFilter.cpp))
-$(eval $(call COMPILE,ScanRootGuard,Exclude/ScanRootGuard.cpp))
+$(eval $(call COMPILE,ScanRootValidator,Exclude/ScanRootValidator.cpp))
 $(eval $(call COMPILE,SignatureLoader,Signature/SignatureLoader.cpp))
 $(eval $(call COMPILE,AutomatonBuilder,Scan/Automaton/AutomatonBuilder.cpp))
 $(eval $(call COMPILE,AutomatonScanner,Scan/Automaton/AutomatonScanner.cpp))

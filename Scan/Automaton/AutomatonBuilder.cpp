@@ -55,7 +55,7 @@ void AutomatonBuilder::buildFailureLinks(Automaton& automaton) const
     std::queue<int> pending;
 
     // Direct children of root fail back to root; missing root transitions
-    // loop back to root.
+    // loop back to root (Aho-Corasick base case).
     for (int& next_state : nodes[0].next) {
         if (next_state == -1) {
             next_state = 0;
@@ -65,7 +65,7 @@ void AutomatonBuilder::buildFailureLinks(Automaton& automaton) const
         }
     }
 
-    // BFS to build the remaining failure links.
+    // BFS builds the remaining failure links and merges output lists.
     while (!pending.empty()) {
         const int state = pending.front();
         pending.pop();

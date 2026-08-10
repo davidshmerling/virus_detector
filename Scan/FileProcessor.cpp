@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -15,23 +16,24 @@ FileProcessor::FileProcessor(
 {
 }
 
-std::vector<std::string> FileProcessor::process(const fs::path& path) const
+std::optional<std::vector<std::string>> FileProcessor::process(
+    const fs::path& path) const
 {
     // One 1 MB read buffer per worker thread: allocated on this thread's first
     // call and reused for every file it scans afterwards. Because it is
     // thread_local, a single shared FileProcessor can run on many threads at
-    // once without them fighting over the same buffer.
+    // once without them contending over the same buffer.
     thread_local std::vector<char> buffer(kChunkSize);
 
     std::unordered_set<std::size_t> matched_indices;
 
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open()) {
-        return {};
+        return std::nullopt;
     }
 
-    // State lives across all chunks of this one file, so a signature that
-    // crosses a chunk boundary is still detected.
+    // Automaton state lives across all chunks of this one file, so a signature
+    // that crosses a chunk boundary is still detected.
     int state = 0;
 
     while (true) {

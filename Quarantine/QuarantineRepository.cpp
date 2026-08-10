@@ -48,6 +48,7 @@ bool QuarantineRepository::save() const
 {
     const nlohmann::json root = {{"entries", entries_}};
 
+    // Atomic write: temp + rename, same pattern as resume/cache checkpoints.
     const fs::path temp_file = metadata_file_.string() + ".tmp";
 
     {

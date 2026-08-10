@@ -6,6 +6,8 @@
 
 int main(int argc, char* argv[])
 {
+    // Catch fatal faults before Application runs, so a SIGSEGV still leaves a
+    // usable stack trace on stderr.
     installSegfaultHandler();
 
     try {

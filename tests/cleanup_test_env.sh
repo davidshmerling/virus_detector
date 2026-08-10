@@ -16,7 +16,7 @@ for target in "$DATA" "$RUNDIR"; do
     esac
 done
 
-# test_14 plants a scan-all target at this fixed top-level path.
+# test_19 plants a scan-all target at this fixed top-level path.
 if [ -d /av_scanall_test ]; then
     rm -rf /av_scanall_test
     echo "Removed: /av_scanall_test"

@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+// One quarantine record: identity, locations, matched signatures, and the
+// permissions to restore later.
 struct QuarantineEntry {
     std::string id;
     std::filesystem::path original_path;
@@ -14,8 +16,8 @@ struct QuarantineEntry {
     std::string quarantined_at;
 
     // Permissions the file had before it was quarantined, so a restore can put
-    // it back exactly as it was. `unknown` means "not recorded" (e.g. older
-    // metadata) and is left untouched on restore.
+    // it back exactly as it was. `unknown` means "not recorded" (for example,
+    // older metadata) and is left untouched on restore.
     std::filesystem::perms original_permissions =
         std::filesystem::perms::unknown;
 };

@@ -78,16 +78,16 @@ void CacheManager::update(CacheEntry entry)
 
 void CacheManager::commitGeneration(bool full_system_scan)
 {
-    // 1. Drain leftover upserts so every stamp is durable.
+    // Drain leftover upserts so every stamp is durable.
     writer_.finish();
 
-    // 2. Only a completed scan-all may prune: anything still at an older
+    // Only a completed scan-all may prune: anything still at an older
     // generation was not seen anywhere on the machine.
     if (full_system_scan) {
         storage_.cleanOldGenerations(current_generation_);
     }
 
-    // 3. Record this generation as the last completed.
+    // Record this generation as the last completed.
     saveLastCompletedGeneration(current_generation_);
 }
 
@@ -109,7 +109,7 @@ bool CacheManager::saveLastCompletedGeneration(std::uint64_t generation) const
         fs::create_directories(directory, error);
     }
 
-    // Atomic write: temp + rename, same pattern as the resume checkpoint.
+    // Atomic write via temp + rename, same pattern as the resume checkpoint.
     const fs::path temp_file = generation_file_.string() + ".tmp";
     {
         std::ofstream file(temp_file, std::ios::trunc);

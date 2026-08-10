@@ -27,7 +27,7 @@ mkdir -p "$SCANROOT"
 seed_file "$KEEP" "still here after both scans"
 seed_file "$GONE" "will be deleted between scans"
 
-# Restrict scan-all to our planted directory only (same pattern as test_14).
+# Restrict scan-all to our planted directory only (fast generation-cleanup check).
 : > "$EXCLUDE"
 shopt -s dotglob
 for entry in /*; do

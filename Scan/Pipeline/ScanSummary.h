@@ -5,14 +5,16 @@
 #include <format>
 #include <string>
 
+// Thread-safe counters for one scan run. Move-only because atomics are not
+// copyable; toLogLine() formats a single summary line for the log.
 struct ScanSummary {
-    std::atomic<std::size_t> discovered{0};
-    std::atomic<std::size_t> scanned{0};
-    std::atomic<std::size_t> cached{0};
-    std::atomic<std::size_t> excluded{0};
-    std::atomic<std::size_t> malicious{0};
-    std::atomic<std::size_t> quarantined{0};
-    std::atomic<std::size_t> failed{0};
+    std::atomic<std::size_t> discovered{0};   // Files handed off by the walker.
+    std::atomic<std::size_t> scanned{0};      // Cache misses that were read.
+    std::atomic<std::size_t> cached{0};       // Cache hits (not re-read).
+    std::atomic<std::size_t> excluded{0};     // Reserved; not incremented yet.
+    std::atomic<std::size_t> malicious{0};    // Files judged malicious.
+    std::atomic<std::size_t> quarantined{0};  // Successfully quarantined.
+    std::atomic<std::size_t> failed{0};       // Open/read failures (Error).
 
     ScanSummary() = default;
 
@@ -42,6 +44,7 @@ struct ScanSummary {
         return *this;
     }
 
+    // Returns a single log line with all counters.
     [[nodiscard]] std::string toLogLine() const
     {
         return std::format(

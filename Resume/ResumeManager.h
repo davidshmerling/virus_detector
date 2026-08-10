@@ -22,28 +22,33 @@ public:
         Logger& logger,
         std::filesystem::path checkpoint_file);
 
-    // Start a new scan, or report that we are resuming a previous one.
+    // Starts a new scan, or reports that a previous interrupted scan is being
+    // resumed. Sets `resumed` accordingly. Returns false on checkpoint I/O
+    // failure.
     bool begin(
         const std::filesystem::path& scan_root,
         bool& resumed);
 
-    // A discovered file was handed to the ThreadPool; it is now unfinished.
+    // Marks `file` as unfinished after it was handed to the ThreadPool.
     bool addFile(const std::filesystem::path& file);
 
-    // A worker finished processing this file.
+    // Records that a worker finished processing `file`.
     bool fileCompleted(const std::filesystem::path& file);
 
-    // The FileTreeWalker finished discovering files.
+    // Records that the FileTreeWalker finished discovering files.
     bool discoveryFinished();
 
+    // Returns the smallest unfinished path (the safe resume point).
     const std::filesystem::path& nextFile() const;
 
 private:
+    // Loads the checkpoint file into `root`, `status`, and `next`.
     bool load(
         std::filesystem::path& root,
         std::string& status,
         std::filesystem::path& next);
 
+    // Writes the current checkpoint atomically with the given `status`.
     bool save(const std::string& status);
 
     // Writes a checkpoint only once every kCheckpointInterval completed files,

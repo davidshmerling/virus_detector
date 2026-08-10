@@ -10,8 +10,8 @@ namespace fs = std::filesystem;
 namespace {
 
 // Paths the product must never scan: OS virtual/temp trees, plus the scanner's
-// own development and installed layouts. User excludes still come from
-// exclude.txt on top of these.
+// own development and installed layouts. User excludes from exclude.txt are
+// layered on top of these.
 const std::vector<fs::path> kDefaultExcluded = {
     "/proc",
     "/sys",
